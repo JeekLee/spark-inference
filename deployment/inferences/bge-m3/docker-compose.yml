@@ -1,32 +1,36 @@
-# bge-m3 (BAAI, multilingual embedding). Dense 1024-dim + sparse + ColBERT
-# vectors in one model. Native max input 8192.
+# bge-m3 (BAAI, multilingual embedding) — served by vLLM in `--task embed`
+# mode. OpenAI-compat /v1/embeddings; XLM-RoBERTa backbone.
+# Dense 1024-dim only (sparse + ColBERT 변종은 표준 endpoint 미지원).
 # Model card: https://huggingface.co/BAAI/bge-m3
 #
-# TEI (Text Embeddings Inference) serves on port 80 with a non-OpenAI HTTP
-# API. LiteLLM bridges via `huggingface/...` provider (see litellm.yaml).
+# Why vLLM (not TEI): HF의 TEI 컨테이너는 arm64 manifest 부재 — Blackwell
+# 호스트에서 풀 불가. vLLM 은 동일 이미지로 chat + embed 둘 다 처리.
 services:
   bge-m3:
     image: ${BGE_M3_IMAGE}
     container_name: spark-inference-bge-m3
     restart: unless-stopped
     runtime: nvidia
+    ipc: host
 
     volumes:
-      - ${SPARK_MODELS_DIR}/${BGE_M3_MODEL_SUBDIR}:/data:ro
+      - ${SPARK_MODELS_DIR}/${BGE_M3_MODEL_SUBDIR}:/model:ro
 
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids:
-                - '${BGE_M3_GPU:-0}'
-              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${BGE_M3_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
 
     command: >
-      --model-id /data
-      --max-client-batch-size ${BGE_M3_MAX_BATCH:-1000}
-      --max-concurrent-requests ${BGE_M3_MAX_CONCURRENT:-2048}
+      --model /model
+      --served-model-name bge-m3
+      --task embed
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${BGE_M3_TP_SIZE:-1}
+      --gpu-memory-utilization ${BGE_M3_GPU_UTIL:-0.10}
+      --max-model-len ${BGE_M3_MAX_LEN:-8192}
+      ${BGE_M3_EXTRA_ARGS:-}
 
     networks:
       - spark-inference-net

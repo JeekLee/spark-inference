@@ -12,3 +12,7 @@ __pycache__/
 # Logs / runtime
 *.log
 .tmp/
+
+# Benchmark outputs (raw responses + CSV summaries) — re-runnable, not source.
+benchmarks/*/raw/
+benchmarks/*/results-*.csv

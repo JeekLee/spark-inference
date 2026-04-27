@@ -1,0 +1,10 @@
+{"id":"01-major-diatonic","key":"C major","chords":["C","Am","F","G"],"n":4}
+{"id":"02-minor-diatonic","key":"A minor","chords":["Am","F","C","G"],"n":4}
+{"id":"03-pop-minor","key":"C minor","chords":["Cm","Ab","Eb","Bb"],"n":4}
+{"id":"04-jazz-turnaround","key":"Bb major","chords":["Cm7","F7","Bbmaj7"],"n":4}
+{"id":"05-flat-heavy","key":"Db major","chords":["Db","Bbm","Gb","Ab"],"n":4}
+{"id":"06-sharp-heavy","key":"F# major","chords":["F#","D#m","B","C#"],"n":4}
+{"id":"07-modal-dorian","key":"A Dorian","chords":["Am","D","G","Am"],"n":4}
+{"id":"08-cold-start","key":"G major","chords":["G"],"n":4}
+{"id":"09-long-n","key":"C major","chords":["C","G","Am","F"],"n":8}
+{"id":"10-ambiguous","key":"C major","chords":["C","Eb","Ab","G"],"n":4}

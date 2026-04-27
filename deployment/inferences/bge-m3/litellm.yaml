@@ -1,0 +1,14 @@
+# LiteLLM routing fragment — bge-m3 (TEI, multilingual embedding).
+#
+# `drop_params: true` is REQUIRED. The openai Python SDK auto-defaults
+# `encoding_format` to "base64" when the caller omits it, but LiteLLM's
+# huggingface provider rejects that param. drop_params silently strips
+# unsupported params before forwarding, keeping openai-SDK clients
+# (langchain-openai, etc.) working end-to-end. TEI returns float lists and
+# the openai SDK accepts them whether the request asked for float or base64.
+  - model_name: bge-m3
+    litellm_params:
+      model: huggingface/bge-m3
+      api_base: http://bge-m3:80
+      api_key: internal
+      drop_params: true

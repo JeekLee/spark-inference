@@ -23,7 +23,7 @@
 7. **vLLM 백엔드는 `*_GPU_IDS` + `*_TP_SIZE` 로 가변** — 두 값의 GPU 개수가 일치해야 함. `NVIDIA_VISIBLE_DEVICES` 방식 (compose `device_ids` 는 길이 가변 불가).
 8. **gateway 라우팅은 컴포넌트 곁의 fragment** — 라우팅되는 모델마다 `deployment/inferences/<name>/litellm.yaml` 작성. `litellm_config.yaml` 을 손으로 편집하지 말 것. `networks/litellm/render.sh` 가 매니페스트(`_manifest.<target>.env::INFERENCES`) 에 등재된 fragment 만 concat 해서 `litellm_config.rendered.yaml` 을 만들고 compose 가 그걸 마운트함. **매니페스트 = gateway 라우팅** (드리프트 원천 차단).
 9. **`_` 로 시작하는 디렉토리는 scaffolding** — 실제 부팅 대상 아님 (`_template-vllm/`, `_template-tei/`). 매니페스트에 등재하지 말 것.
-10. **이미지 우선순위: NGC > OSS** — 같은 모델/버전이면 NGC(`nvcr.io/nvidia/...`) 우선. arm64/Blackwell 호환성이 OSS 보다 안정적. OSS 가 필요하면 `.env` 의 `*_IMAGE` 변수만 갈아끼울 것.
+10. **이미지 선택은 호스트 컨텍스트 + 명시 핀** — `vllm/vllm-openai` (OSS Docker Hub) 는 인증 불필요 + multi-arch manifest 자동 매칭. NGC (`nvcr.io/nvidia/vllm`) 는 NVIDIA 가 직접 빌드/검증해 arm64+Blackwell 같은 신규 조합에서 안정성 ↑ (단 NGC 계정 필요). 한 호스트는 한 source 로 통일하고, 부팅 실패(PTX/SASS 에러 등) 시 다른 source 로 폴백. **이미지 태그는 항상 명시 핀** (`v0.19.1` 등) — `:latest` 는 커밋 X.
 11. **호스트 노출은 default-safe + auth 필수** — 두 invariant 가 함께 강제됨.
     - **bind**: `ports:` 호스트 IP 부분은 `${SPARK_LITELLM_BIND:-127.0.0.1}` 로 변수화. default = loopback 만.
     - **auth**: `LITELLM_MASTER_KEY` 는 compose 의 `:?` 가드로 **항상 필수** — unset/empty 면 boot 거부. 클라이언트는 `Authorization: Bearer <key>` 동봉.

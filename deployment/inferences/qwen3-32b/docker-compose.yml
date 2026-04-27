@@ -1,0 +1,42 @@
+# Qwen3-32B (Qwen, dense 32B). Hybrid thinking/non-thinking mode, native
+# context 32K (YaRN-extendable), Hermes-style tool calling.
+# Model card: https://huggingface.co/Qwen/Qwen3-32B
+#
+# Image / GPU / runtime args come from envs/inferences/qwen3-32b/.env.<target>.
+# count(QWEN3_32B_GPU_IDS) MUST equal QWEN3_32B_TP_SIZE.
+services:
+  qwen3-32b:
+    image: ${QWEN3_32B_IMAGE}
+    container_name: spark-inference-qwen3-32b
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${QWEN3_32B_MODEL_SUBDIR}:/model:ro
+
+    # NVIDIA_VISIBLE_DEVICES is the only way to express a variable-length
+    # GPU list via env interpolation (compose's `device_ids` is a fixed
+    # YAML list and cannot be expanded by env vars).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${QWEN3_32B_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+
+    command: >
+      --model /model
+      --served-model-name qwen3-32b
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${QWEN3_32B_TP_SIZE:-1}
+      --gpu-memory-utilization ${QWEN3_32B_GPU_UTIL:-0.85}
+      --max-model-len ${QWEN3_32B_MAX_LEN:-32768}
+      ${QWEN3_32B_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

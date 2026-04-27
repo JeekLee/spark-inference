@@ -1,0 +1,8 @@
+# LiteLLM routing fragment — Qwen3-32B (vLLM, OpenAI-compat).
+# render.sh appends this fragment to the gateway config ONLY when the
+# component is listed in envs/_manifest.<target>.env::INFERENCES.
+  - model_name: qwen3-32b
+    litellm_params:
+      model: openai/qwen3-32b
+      api_base: http://qwen3-32b:8000/v1
+      api_key: internal

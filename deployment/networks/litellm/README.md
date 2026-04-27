@@ -19,27 +19,41 @@ SPARK_LITELLM_BIND=127.0.0.1     # optional, default 127.0.0.1 (host-only)
 SPARK_LITELLM_PORT=10080         # optional, default 10080
 LITELLM_IMAGE_TAG=main-stable    # optional, default main-stable
 LITELLM_LOG=INFO                 # optional, default INFO
+LITELLM_MASTER_KEY=sk-spark-...  # REQUIRED — generate with the snippet below
 ```
 
 ## Auth & 네트워크 노출
 
-**No-auth 모드** + **localhost-only bind** 가 default. compose 가 의도적으로
-`LITELLM_MASTER_KEY` 를 전달하지 않으며 (빈 값을 줘도 litellm 이 인증을 강제),
-호스트 노출은 `127.0.0.1:10080` 으로 제한됩니다.
+게이트웨이는 default 로 **localhost-only + auth required**. 둘 중 어느 한쪽도
+끄지 않습니다 — compose 의 `:?` 가드가 `LITELLM_MASTER_KEY` 미설정 시 boot
+자체를 거부합니다.
 
-이 둘이 함께여야 안전합니다:
-
-| 인증 | bind | 결과 |
+| `SPARK_LITELLM_BIND` | `LITELLM_MASTER_KEY` | 결과 |
 |---|---|---|
-| no-auth | `127.0.0.1` | ✅ 안전 (default) — 호스트 자신만 도달 |
-| no-auth | `0.0.0.0`   | 🚨 위험 — 누구나 모델 호출 가능 |
-| auth 활성 | `0.0.0.0` | OK (TLS + 강한 키 가정) |
+| `127.0.0.1` (default) | set | ✅ auth + host-only (dev) |
+| `0.0.0.0` | set | ✅ auth + 외부 호출 (운영) |
+| (any) | unset/empty | ❌ compose 가 boot 거부 |
+| `0.0.0.0` | unset | ❌ 위와 동일 (= 위험 조합 차단) |
 
-외부 노출이 필요하면:
-1. `SPARK_LITELLM_BIND=0.0.0.0` 으로 바꾸기 **전에** docker-compose.yml 에
-   `LITELLM_MASTER_KEY` env 를 넣어 auth 활성화 — 또는 방화벽/VPN으로 신뢰
-   네트워크에만 노출되는지 확인.
-2. 값 변경 후 `./run.sh <target> restart`.
+### 첫 부팅 절차
+
+```bash
+cd envs/networks/litellm
+cp .env.example .env.local
+
+# master key 생성 + .env.local 에 적용
+KEY=$(openssl rand -hex 24 | xargs printf 'sk-spark-%s\n')
+sed -i "s|^#LITELLM_MASTER_KEY=$|LITELLM_MASTER_KEY=$KEY|" .env.local
+echo "saved: $KEY"   # 클라이언트에 알려줄 값
+
+cd ../../../deployment/networks/litellm
+./run.sh local up
+```
+
+### 외부 호출 활성화
+
+`.env.<target>` 에서 `SPARK_LITELLM_BIND=127.0.0.1` → `0.0.0.0` 변경 후
+`./run.sh <target> restart`. (master key 는 이미 있으니 추가 작업 불필요.)
 
 ## Start / stop
 
@@ -60,17 +74,23 @@ make local-up
 
 ## 클라이언트 사용
 
+`.env.<target>` 의 `LITELLM_MASTER_KEY` 값을 Bearer token 으로 동봉.
+
 ```bash
+KEY=sk-spark-...   # = LITELLM_MASTER_KEY
 curl -sS http://localhost:10080/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $KEY" \
   -d '{"model":"<모델이름>","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ```python
-# api_key 는 SDK가 요구하지만 게이트웨이는 무시합니다 (no-auth).
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:10080/v1", api_key="not-used")
+client = OpenAI(
+    base_url="http://localhost:10080/v1",
+    api_key="sk-spark-...",   # = LITELLM_MASTER_KEY
+)
 client.chat.completions.create(
     model="<모델이름>",
     messages=[{"role": "user", "content": "hello"}],

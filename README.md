@@ -44,19 +44,24 @@ make local-up
 curl -s http://localhost:10080/v1/models | jq
 ```
 
-## 네트워크 노출 정책 (default-safe)
+## 네트워크 노출 정책 (default-safe + auth required)
 
-LiteLLM 게이트웨이는 **호스트 자신만 접근 가능** 하도록 default-bind 됩니다.
-그 외 컨테이너(vLLM/TEI)는 호스트에 포트 노출 자체를 하지 않습니다 — 게이트웨이를
-통해서만 접근하는 단일 진입점 모델.
+LiteLLM 게이트웨이는 default 로 **호스트 자신만 접근 가능** + **auth 필수**.
+그 외 컨테이너(vLLM/TEI)는 호스트에 포트 노출 자체를 하지 않습니다 —
+게이트웨이를 통해서만 접근하는 단일 진입점 모델.
 
-| 위치 | 기본값 | 의미 |
-|---|---|---|
-| `envs/networks/litellm/.env.<target>` 의 `SPARK_LITELLM_BIND` | `127.0.0.1` | loopback only — `localhost:10080` 만 도달 |
-| 같은 변수 `0.0.0.0` 으로 변경 | (opt-in) | LAN/외부 노출. 방화벽/VPN/`LITELLM_MASTER_KEY` 중 하나 필수 |
+**허용되는 조합** (다른 조합은 boot 단계에서 차단)
 
-**왜?** 게이트웨이는 default 로 no-auth 모드 (closed network 가정). 0.0.0.0 default 로
-띄우면 LAN/공용IP 노출 시 누구든 모델 호출 가능 → 비용/리소스 도용 위험.
-외부 노출은 명시적 opt-in 으로만.
+| `SPARK_LITELLM_BIND` | `LITELLM_MASTER_KEY` | 시나리오 | 안전 |
+|---|---|---|---|
+| `127.0.0.1` (default) | set | dev / 단일 호스트 / sandbox | ✅ |
+| `0.0.0.0` | set | 외부 호출 (운영) | ✅ |
+| (any) | unset 또는 empty | — | ❌ compose `:?` 가드가 boot 거부 |
+| `0.0.0.0` | unset | 외부 노출 + no-auth (도용 위험) | ❌ 위와 동일 |
 
-자세한 컨벤션과 불변 규칙은 `CLAUDE.md` 참고.
+**왜?** no-auth 게이트웨이가 0.0.0.0 으로 떠 있으면 LAN/공용IP 노출 시 누구나
+모델 호출 → 비용/리소스 도용. auth 를 항상 강제하면 그 시나리오가 코드 단계에서
+불가능해집니다 (default-safe).
+
+자세한 컨벤션과 불변 규칙은 `CLAUDE.md`, 세부 설정 절차는
+`deployment/networks/litellm/README.md` 참고.

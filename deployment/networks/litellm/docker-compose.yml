@@ -18,11 +18,12 @@ services:
     volumes:
       - ./litellm_config.rendered.yaml:/app/config.yaml:ro
 
-    # No-auth mode: spark-inference runs the gateway on a closed internal
-    # network so we do NOT pass LITELLM_MASTER_KEY at all. Setting it (even
-    # to empty) makes litellm enforce auth and reject requests.
+    # Auth: LITELLM_MASTER_KEY is required. compose's `:?` guard fails boot
+    # if unset or empty. Clients must send `Authorization: Bearer <key>`.
+    # See README.md "네트워크 노출 정책" for BIND × KEY allowed combos.
     environment:
       LITELLM_LOG: ${LITELLM_LOG:-INFO}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY required — set in envs/networks/litellm/.env.<target>}
 
     command:
       - "--config"

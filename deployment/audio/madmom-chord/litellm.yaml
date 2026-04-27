@@ -1,0 +1,8 @@
+# LiteLLM pass-through fragment — audio/madmom-chord.
+#
+# /audio/chords  →  http://madmom-chord:8000/chords
+#
+# render.sh 가 envs/_manifest.<target>.env::AUDIO 에 madmom-chord 가
+# 등재된 경우만 이 fragment 를 머지한다.
+  - path: "/audio/chords"
+    target: "http://madmom-chord:8000/chords"

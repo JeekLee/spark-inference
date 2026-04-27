@@ -1,0 +1,37 @@
+# bge-m3 (BAAI, multilingual embedding). Dense 1024-dim + sparse + ColBERT
+# vectors in one model. Native max input 8192.
+# Model card: https://huggingface.co/BAAI/bge-m3
+#
+# TEI (Text Embeddings Inference) serves on port 80 with a non-OpenAI HTTP
+# API. LiteLLM bridges via `huggingface/...` provider (see litellm.yaml).
+services:
+  bge-m3:
+    image: ${BGE_M3_IMAGE}
+    container_name: spark-inference-bge-m3
+    restart: unless-stopped
+    runtime: nvidia
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${BGE_M3_MODEL_SUBDIR}:/data:ro
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids:
+                - '${BGE_M3_GPU:-0}'
+              capabilities: [gpu]
+
+    command: >
+      --model-id /data
+      --max-client-batch-size ${BGE_M3_MAX_BATCH:-1000}
+      --max-concurrent-requests ${BGE_M3_MAX_CONCURRENT:-2048}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

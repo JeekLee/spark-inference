@@ -24,7 +24,11 @@
 8. **gateway 라우팅은 컴포넌트 곁의 fragment** — 라우팅되는 모델마다 `deployment/inferences/<name>/litellm.yaml` 작성. `litellm_config.yaml` 을 손으로 편집하지 말 것. `networks/litellm/render.sh` 가 매니페스트(`_manifest.<target>.env::INFERENCES`) 에 등재된 fragment 만 concat 해서 `litellm_config.rendered.yaml` 을 만들고 compose 가 그걸 마운트함. **매니페스트 = gateway 라우팅** (드리프트 원천 차단).
 9. **`_` 로 시작하는 디렉토리는 scaffolding** — 실제 부팅 대상 아님 (`_template-vllm/`, `_template-tei/`). 매니페스트에 등재하지 말 것.
 10. **이미지 우선순위: NGC > OSS** — 같은 모델/버전이면 NGC(`nvcr.io/nvidia/...`) 우선. arm64/Blackwell 호환성이 OSS 보다 안정적. OSS 가 필요하면 `.env` 의 `*_IMAGE` 변수만 갈아끼울 것.
-11. **호스트 노출은 default-safe** — LiteLLM gateway 의 `ports:` 호스트 IP 부분은 `${SPARK_LITELLM_BIND:-127.0.0.1}` 로 변수화. **default = loopback 만**. no-auth 게이트웨이를 `0.0.0.0` 으로 default-bind 하면 LAN/공용IP 노출 시 누구든 모델 호출 가능 (비용/리소스 도용). 외부 노출이 필요하면 `.env.<target>` 에 `SPARK_LITELLM_BIND=0.0.0.0` 을 명시적으로 설정 + 방화벽/VPN/인증 중 하나로 신뢰 경계 확보. vLLM/TEI 백엔드 컨테이너에는 `ports:` 자체를 두지 말 것 — 게이트웨이 통해서만 접근.
+11. **호스트 노출은 default-safe + auth 필수** — 두 invariant 가 함께 강제됨.
+    - **bind**: `ports:` 호스트 IP 부분은 `${SPARK_LITELLM_BIND:-127.0.0.1}` 로 변수화. default = loopback 만.
+    - **auth**: `LITELLM_MASTER_KEY` 는 compose 의 `:?` 가드로 **항상 필수** — unset/empty 면 boot 거부. 클라이언트는 `Authorization: Bearer <key>` 동봉.
+    - 허용 조합: `127.0.0.1+key` (dev/sandbox), `0.0.0.0+key` (외부 호출). `0.0.0.0+no-key` 는 compose 단계에서 차단.
+    - vLLM/TEI 백엔드 컨테이너에는 `ports:` 자체를 두지 말 것 — 게이트웨이 통해서만 접근. auth/로깅/메트릭이 게이트웨이 한 곳에 일원화됨.
 
 ## 새 컴포넌트 추가 체크리스트
 

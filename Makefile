@@ -28,7 +28,7 @@ C ?=
 
 # Resolve a single component path under deployment/ from its name.
 define _find_component
-$(shell for cat in inferences networks; do \
+$(shell for cat in inferences audio networks; do \
     [ -d "$(DEPLOYMENT_DIR)/$$cat/$(C)" ] && echo "$$cat/$(C)" && break; \
   done)
 endef

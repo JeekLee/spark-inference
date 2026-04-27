@@ -1,0 +1,25 @@
+# LiteLLM routing config — TEMPLATE.
+#
+# Do NOT edit `model_list` here. This file is the static header; the actual
+# rendered config at runtime is `litellm_config.rendered.yaml`, produced
+# by `render.sh` by concatenating this file with the per-component
+# fragments listed in `envs/_manifest.<target>.env::INFERENCES`.
+#
+# To add / remove a routed model:
+#   1. Create/remove deployment/inferences/<name>/litellm.yaml
+#   2. List/unlist the component name in _manifest.<target>.env::INFERENCES
+#   → render.sh picks it up on the next `run.sh <target> up|restart`.
+
+general_settings:
+  # No-auth mode: admin UI must stay OFF — without a master key it would be
+  # wide open. (See docker-compose.yml comment.)
+  disable_admin_ui: true
+
+litellm_settings:
+  # Expose /metrics for Prometheus scraping. Aggregates latency / token
+  # usage / error metrics across all backends — no need to scrape vllm/TEI
+  # individually.
+  callbacks: ["prometheus"]
+
+model_list:
+  # >>> inference fragments appended below by render.sh (target-specific) <<<

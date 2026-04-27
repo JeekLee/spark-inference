@@ -1,0 +1,45 @@
+# Template: copy this directory to `deployment/inferences/<name>/` and
+# replace every __NAME__ / __NAME_UPPER__ token with your component name.
+#
+# Conventions enforced by this template (do NOT change without reading CLAUDE.md):
+#   - service name == directory name == LiteLLM model_name (1:1:1).
+#   - GPU allocation via NVIDIA_VISIBLE_DEVICES env (variable length).
+#     count(__NAME_UPPER___GPU_IDS) MUST equal __NAME_UPPER___TP_SIZE.
+#   - vLLM exposes :8000 inside the container; LiteLLM addresses it by service name.
+#   - Image variable defaults to NGC; OSS fallback is documented in .env.example.
+services:
+  __NAME__:
+    image: ${__NAME_UPPER___IMAGE}
+    container_name: spark-inference-__NAME__
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${__NAME_UPPER___MODEL_SUBDIR}:/model:ro
+
+    # NVIDIA_VISIBLE_DEVICES is the only way to express a variable-length
+    # GPU list via env interpolation (compose's `device_ids` is a fixed
+    # YAML list and cannot be expanded by env vars).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${__NAME_UPPER___GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+
+    command: >
+      --model /model
+      --served-model-name __NAME__
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${__NAME_UPPER___TP_SIZE:-1}
+      --gpu-memory-utilization ${__NAME_UPPER___GPU_UTIL:-0.9}
+      --max-model-len ${__NAME_UPPER___MAX_LEN:-32768}
+      ${__NAME_UPPER___EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

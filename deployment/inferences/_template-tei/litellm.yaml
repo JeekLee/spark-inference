@@ -1,0 +1,16 @@
+# LiteLLM routing fragment for TEI-served embedding / reranker models.
+#
+# After copying, replace __NAME__ with your component directory name.
+#
+# `drop_params: true` is REQUIRED. The openai Python SDK auto-defaults
+# `encoding_format` to "base64" when the caller omits it, but LiteLLM's
+# huggingface provider rejects that param. drop_params silently strips
+# unsupported params before forwarding, keeping openai-SDK clients
+# (langchain-openai, etc.) working end-to-end. TEI returns float lists and
+# the openai SDK accepts them whether the request asked for float or base64.
+  - model_name: __NAME__
+    litellm_params:
+      model: huggingface/__NAME__
+      api_base: http://__NAME__:80
+      api_key: internal
+      drop_params: true

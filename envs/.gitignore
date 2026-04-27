@@ -1,0 +1,26 @@
+# envs/.gitignore
+#
+# `.env.example` / `_manifest.example.env` 만 추적한다.
+# 실제 값 파일은 호스트별 비밀값이므로 git에 올리지 않는다.
+
+.env
+**/.env
+
+*.env.local
+*.env.dev
+*.env.prod
+
+**/.env.local
+**/.env.dev
+**/.env.prod
+
+# `.env.example` 은 예외적으로 추적한다.
+!**/.env.example
+!.env.example
+
+# manifest 파일은 호스트별 기동 대상을 고르는 용도다.
+# `_manifest.example.env` 만 추적한다.
+_manifest.local.env
+_manifest.dev.env
+_manifest.prod.env
+!_manifest.example.env

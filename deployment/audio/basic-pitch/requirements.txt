@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+# BasicPitch — Spotify polyphonic note transcription. PyPI 패키지가 모델
+# weights(ICASSP 2022) 까지 동봉. TF 의존은 패키지가 끌어옴.
+basic-pitch==0.4.0

@@ -1,0 +1,23 @@
+# audio/basic-pitch — polyphonic pitch transcription (Spotify BasicPitch).
+#
+# CPU only — TF inference 는 노트 길이의 ~수배 속도로 빠름. GPU 자원 안 점유.
+# CLAUDE.md invariant 11: ports 노출 X. 게이트웨이(LiteLLM) 통해서만 접근.
+services:
+  basic-pitch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spark-audio-basic-pitch:local
+    container_name: spark-inference-basic-pitch
+    restart: unless-stopped
+
+    environment:
+      BASIC_PITCH_LOG_LEVEL: ${BASIC_PITCH_LOG_LEVEL:-INFO}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

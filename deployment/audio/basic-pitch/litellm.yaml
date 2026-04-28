@@ -1,0 +1,8 @@
+# LiteLLM pass-through fragment — audio/basic-pitch.
+#
+# /audio/notes  →  http://basic-pitch:8000/notes
+#
+# render.sh 가 envs/_manifest.<target>.env::AUDIO 에 basic-pitch 가
+# 등재된 경우만 이 fragment 를 머지한다.
+  - path: "/audio/notes"
+    target: "http://basic-pitch:8000/notes"

@@ -10,14 +10,16 @@ LiteLLM v1.82.3 의 `pass_through_endpoints` 는 라우트 시그니처에 `cust
 
 요청 종류에 따라 다른 라우팅 키:
 
-| 라우트 | 라우팅 키 | 매핑 |
-|---|---|---|
-| `/v1/chat/completions` | request body 의 `model` 필드 | `inference_models[model]` 의 base URL + `/v1/chat/completions` |
-| `/v1/completions` | 동일 | `… + /v1/completions` |
-| `/v1/embeddings` | 동일 | `… + /v1/embeddings` |
-| `/v1/models` | 자체 응답 | 등록된 inference 모델 목록 |
-| `/v1/audio/chords`, `/v1/audio/notes`, `/v1/audio/stems`, … | path 정확 매치 | `audio_routes[path]` 의 target URL |
-| `/health`, `/metrics` | (auth 면제) | 게이트웨이 자체 |
+| Method | 라우트 | 라우팅 키 | 매핑 |
+|---|---|---|---|
+| POST | `/v1/chat/completions` | request body 의 `model` 필드 | `inference_models[model]` base URL + `/v1/chat/completions` |
+| POST | `/v1/completions` | 동일 | `… + /v1/completions` |
+| POST | `/v1/embeddings` | 동일 | `… + /v1/embeddings` |
+| GET  | `/v1/models` | 자체 응답 | 등록된 inference 모델 목록 |
+| POST | `/v1/audio/chords`, `/v1/audio/notes`, `/v1/audio/stems`, … | path 정확 매치 | `audio_routes[path]` 의 target URL |
+| GET  | `/health`, `/metrics` | (auth 면제) | 게이트웨이 자체 |
+
+`/v1/chat/completions` 의 SSE streaming (`stream: true`) 도 그대로 통과 — gateway 가 응답을 chunked 로 forward.
 
 ## 매니페스트 = 라우팅
 

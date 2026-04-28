@@ -52,7 +52,8 @@ KEY=$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= 
 curl -s -H "Authorization: Bearer $KEY" http://localhost:10080/v1/models | jq
 ```
 
-전체 라우팅 / 트러블슈팅 / 메트릭은 `deployment/networks/gateway/README.md`.
+- 클라이언트 API 스펙 (호출자 입장): `deployment/networks/gateway/API.md`
+- 게이트웨이 아키텍처 / 라우팅 메커니즘 / 트러블슈팅: `deployment/networks/gateway/README.md`
 
 ## 네트워크 노출 정책 (default-safe + auth required)
 

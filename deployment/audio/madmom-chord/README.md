@@ -4,14 +4,14 @@ Madmom (CPJKU) 의 CNN+CRF chord recognition 파이프라인 — audio → time-
 
 ## API
 
-`POST /audio/chords` — spark-gateway (default 10080) 너머로 호출.
+`POST /v1/audio/chords` — spark-gateway (default 10080) 너머로 호출.
 
 ```bash
 KEY="$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@clip.wav" \
-  http://127.0.0.1:10080/audio/chords
+  http://127.0.0.1:10080/v1/audio/chords
 ```
 
 응답:

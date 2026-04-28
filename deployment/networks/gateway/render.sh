@@ -8,7 +8,7 @@
 #      `deployment/audio/<name>/gateway.yaml` (kind=audio fragment)
 #
 # 결과 파일 `routes.rendered.yaml` 은 gateway 컨테이너에 bind-mounted 됨.
-# 매니페스트에 등재된 컴포넌트만 라우팅 → /v1/models 와 /audio/* 표면이
+# 매니페스트에 등재된 컴포넌트만 라우팅 → /v1/models 와 /v1/audio/* 표면이
 # 부팅 set 와 정확히 일치 (manifest = routing, 드리프트 원천 차단).
 #
 # Usage: render.sh <local|dev|prod>

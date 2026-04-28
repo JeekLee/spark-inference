@@ -10,7 +10,7 @@
 #     url:   <backend base URL, /v1 빼고>
 #
 #   - kind: audio       # FastAPI multipart/binary 백엔드
-#     path:   <gateway 외부 경로, 예: /audio/chords>
+#     path:   <gateway 외부 경로, 예: /v1/audio/chords>
 #     target: <백엔드 full URL, 예: http://madmom-chord:8000/chords>
 
 backends:

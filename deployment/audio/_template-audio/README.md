@@ -26,7 +26,7 @@ cd deployment/audio/<name>
 cp envs/audio/<name>/.env.example envs/audio/<name>/.env.<target>
 
 # 6. gateway.yaml 의 path / target 마지막 segment 를 의미 있는 endpoint
-#    이름으로 수정 (예: /audio/chords / /audio/notes / /audio/stems).
+#    이름으로 수정 (예: /v1/audio/chords / /v1/audio/notes / /v1/audio/stems).
 
 # 7. 매니페스트 등재
 # envs/_manifest.<target>.env::AUDIO 에 <name> 추가
@@ -41,11 +41,11 @@ make <target>-up
 
 ```yaml
 - kind: audio
-  path: /audio/<endpoint>
+  path: /v1/audio/<endpoint>
   target: http://<name>:8000/<endpoint>
 ```
 
-클라이언트는 `https://<gateway>/audio/<endpoint>` 로 호출, master key 인증은 게이트웨이가 처리. 한 컴포넌트에서 여러 endpoint 노출하려면 entry 를 추가하면 된다.
+클라이언트는 `https://<gateway>/v1/audio/<endpoint>` 로 호출, master key 인증은 게이트웨이가 처리. 한 컴포넌트에서 여러 endpoint 노출하려면 entry 를 추가하면 된다. `/v1/` prefix 는 OpenAI 컨벤션과 정렬 — chat/embed 라우트(`/v1/chat/completions` 등) 와 같은 네임스페이스.
 
 ## CPU vs GPU
 

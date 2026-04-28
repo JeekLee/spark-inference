@@ -1,4 +1,4 @@
 # Gateway 라우팅 fragment — audio/madmom-chord.
 - kind: audio
-  path: /audio/chords
+  path: /v1/audio/chords
   target: http://madmom-chord:8000/chords

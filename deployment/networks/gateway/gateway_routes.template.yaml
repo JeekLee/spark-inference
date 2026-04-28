@@ -1,0 +1,16 @@
+# spark-gateway 라우팅 — TEMPLATE.
+#
+# render.sh 가 envs/_manifest.<target>.env::INFERENCES + ::AUDIO 에 등재된
+# 각 컴포넌트의 gateway.yaml fragment 를 이 파일 끝의 `backends:` 아래에
+# 차례대로 append 하여 routes.rendered.yaml 를 만든다.
+#
+# fragment schema:
+#   - kind: inference   # vLLM / TEI 같은 OpenAI-compat 백엔드
+#     model: <model_name>
+#     url:   <backend base URL, /v1 빼고>
+#
+#   - kind: audio       # FastAPI multipart/binary 백엔드
+#     path:   <gateway 외부 경로, 예: /audio/chords>
+#     target: <백엔드 full URL, 예: http://madmom-chord:8000/chords>
+
+backends:

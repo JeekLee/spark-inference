@@ -4,14 +4,14 @@ Madmom (CPJKU) 의 CNN+CRF chord recognition 파이프라인 — audio → time-
 
 ## API
 
-`POST /chords` — 호스트 포트 직접 노출 (`MADMOM_CHORD_HOST_PORT`, default 10081).
+`POST /audio/chords` — spark-gateway (default 10080) 너머로 호출.
 
 ```bash
-KEY="$(grep -E '^AUDIO_MASTER_KEY=' envs/audio/madmom-chord/.env.local | cut -d= -f2-)"
+KEY="$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@clip.wav" \
-  http://127.0.0.1:10081/chords
+  http://127.0.0.1:10080/audio/chords
 ```
 
 응답:
@@ -36,7 +36,7 @@ curl -X POST \
 
 ## 인증
 
-Bearer auth — startup 시 `AUDIO_MASTER_KEY` env var 필수, 미설정/공백이면 boot 거부. LiteLLM 의 `LITELLM_MASTER_KEY` 와 같은 값으로 설정하면 클라이언트는 한 키로 chat/embed + audio 양쪽 호출 가능.
+게이트웨이(`networks/gateway`) 가 Bearer 검증 담당. 컴포넌트 자체에는 별도 auth 없음 — 내부 docker network 만 노출되므로 게이트웨이 한 layer 면 충분.
 
 ## 입력 포맷
 

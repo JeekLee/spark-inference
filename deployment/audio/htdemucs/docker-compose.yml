@@ -6,7 +6,7 @@
 #   NVIDIA_VISIBLE_DEVICES: ${HTDEMUCS_GPU_IDS:-0}
 # (단 Dockerfile 의 베이스 이미지도 CUDA 지원으로 교체 필요.)
 #
-# CLAUDE.md invariant 11: 호스트 노출은 default-safe bind + 자체 Bearer auth.
+# CLAUDE.md invariant 11: ports 노출 X — gateway 통해서만 접근.
 services:
   htdemucs:
     build:
@@ -16,12 +16,8 @@ services:
     container_name: spark-inference-htdemucs
     restart: unless-stopped
 
-    ports:
-      - "${HTDEMUCS_BIND:-127.0.0.1}:${HTDEMUCS_HOST_PORT:?set HTDEMUCS_HOST_PORT in env}:8000"
-
     environment:
       HTDEMUCS_LOG_LEVEL: ${HTDEMUCS_LOG_LEVEL:-INFO}
-      AUDIO_MASTER_KEY: ${AUDIO_MASTER_KEY:?AUDIO_MASTER_KEY required}
 
     networks:
       - spark-inference-net

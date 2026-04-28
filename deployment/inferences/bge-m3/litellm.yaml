@@ -1,8 +1,0 @@
-# LiteLLM routing fragment — bge-m3 (vLLM embed task, OpenAI-compat).
-# vLLM 의 /v1/embeddings 가 openai SDK 형식으로 응답하므로 `openai/...`
-# provider 사용. TEI 시절에 필요했던 `drop_params: true` 는 불필요.
-  - model_name: bge-m3
-    litellm_params:
-      model: openai/bge-m3
-      api_base: http://bge-m3:8000/v1
-      api_key: internal

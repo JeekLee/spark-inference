@@ -1,9 +1,9 @@
 # Template: copy this directory to `deployment/inferences/<name>/` and
 # replace every __NAME__ / __NAME_UPPER__ token with your component name.
 #
-# TEI (Text Embeddings Inference) serves embedding/reranker models with an
-# OpenAI-incompatible HTTP API on port 80; LiteLLM bridges via the
-# `huggingface/...` provider (see litellm.yaml).
+# TEI (Text Embeddings Inference) serves embedding/reranker models on port 80.
+# spark-gateway proxies /v1/embeddings to it (gateway.yaml fragment with
+# `kind: inference`, `url: http://__NAME__:80`).
 services:
   __NAME__:
     image: ${__NAME_UPPER___IMAGE}

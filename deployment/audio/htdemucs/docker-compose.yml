@@ -1,11 +1,6 @@
-# audio/htdemucs — source separation (Meta htdemucs, 4-stem).
+# audio/htdemucs — source separation (Meta htdemucs, 4-stem). GPU build.
 #
-# v1 은 CPU only — arm64+Blackwell+CUDA 베이스 이미지 마이그는 별도 PR 로
-# 분리해 라인업 부팅을 우선. GPU 가속이 필요해지면 아래 두 라인 활성:
-#   runtime: nvidia
-#   NVIDIA_VISIBLE_DEVICES: ${HTDEMUCS_GPU_IDS:-0}
-# (단 Dockerfile 의 베이스 이미지도 CUDA 지원으로 교체 필요.)
-#
+# nvidia runtime + sm_12.1 (Blackwell GB10). 30s 클립 분리 ~3s 수준.
 # CLAUDE.md invariant 11: ports 노출 X — gateway 통해서만 접근.
 services:
   htdemucs:
@@ -15,9 +10,14 @@ services:
     image: spark-audio-htdemucs:local
     container_name: spark-inference-htdemucs
     restart: unless-stopped
+    runtime: nvidia
 
     environment:
       HTDEMUCS_LOG_LEVEL: ${HTDEMUCS_LOG_LEVEL:-INFO}
+      NVIDIA_VISIBLE_DEVICES: ${HTDEMUCS_GPU_IDS:-0}
+      # PyTorch 의 sm_12.1 미지원 경고는 무해 — PTX JIT fallback 으로 실행됨.
+      # 경고를 묻고 싶으면 아래 변수 활성화 (로깅 노이즈만 줄임, 동작은 동일).
+      # TORCH_CUDA_ARCH_LIST: "8.0;8.6;9.0;12.0+PTX"
 
     networks:
       - spark-inference-net

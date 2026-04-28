@@ -1,0 +1,13 @@
+# LiteLLM pass-through fragment for an audio component.
+#
+# After copying this template to deployment/audio/<name>/litellm.yaml,
+# replace every `__NAME__` token. Each entry maps an external gateway path
+# to the internal container. LiteLLM 의 master key 인증이 자동 적용된다
+# (pass_through_endpoints 도 일반 endpoint 와 동일한 auth 미들웨어 거침).
+#
+# render.sh 가 `pass_through_endpoints:` 섹션 아래로 이 fragment 를 머지
+# 하는 건 컴포넌트가 envs/_manifest.<target>.env::AUDIO 에 등재된 경우만.
+#
+# 여러 path 를 노출하려면 entry 를 추가한다 (`/audio/__NAME__/v2` 등).
+  - path: "/audio/__NAME__"
+    target: "http://__NAME__:8000/__NAME__"

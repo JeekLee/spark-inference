@@ -19,9 +19,10 @@
 #
 # Manifest format — envs/_manifest.<target>.env:
 #   INFERENCES="name1 name2 ..."
+#   AUDIO="name1 name2 ..."
 #   NETWORKS="name1 name2 ..."
 # Names correspond to directories under
-# deployment/{inferences,networks}/<name>/.
+# deployment/{inferences,audio,networks}/<name>/.
 # Missing directories are logged as warnings and skipped (the entire run does
 # NOT abort).
 set -euo pipefail
@@ -50,15 +51,17 @@ fi
 . "$MANIFEST"
 
 INFERENCES="${INFERENCES:-}"
+AUDIO="${AUDIO:-}"
 NETWORKS="${NETWORKS:-}"
 
-if [ -z "$INFERENCES" ] && [ -z "$NETWORKS" ]; then
-  echo "error: manifest $MANIFEST defines neither INFERENCES nor NETWORKS" >&2
+if [ -z "$INFERENCES" ] && [ -z "$AUDIO" ] && [ -z "$NETWORKS" ]; then
+  echo "error: manifest $MANIFEST defines no INFERENCES / AUDIO / NETWORKS" >&2
   exit 1
 fi
 
 echo "── manifest: $MANIFEST"
 echo "   INFERENCES : ${INFERENCES:-<none>}"
+echo "   AUDIO      : ${AUDIO:-<none>}"
 echo "   NETWORKS   : ${NETWORKS:-<none>}"
 
 # ──────────────── Helpers ────────────────
@@ -94,20 +97,24 @@ run_component() {
 }
 
 for_each_up() {
-  # Boot order: inferences first (slow load), networks (gateway) last so
-  # all upstreams are ready before clients can hit the gateway.
+  # Boot order: inferences (slow LLM load) → audio (fast FastAPI build/start) →
+  # networks (gateway) last so every upstream is ready before clients hit the
+  # gateway.
   for name in $INFERENCES; do run_component "inferences" "$name" up; done
+  for name in $AUDIO;      do run_component "audio"      "$name" up; done
   for name in $NETWORKS;   do run_component "networks"   "$name" up; done
 }
 
 for_each_down() {
   for name in $NETWORKS;   do run_component "networks"   "$name" down || true; done
+  for name in $AUDIO;      do run_component "audio"      "$name" down || true; done
   for name in $INFERENCES; do run_component "inferences" "$name" down || true; done
 }
 
 for_each_cmd() {
   local subcommand="$1"
   for name in $INFERENCES; do run_component "inferences" "$name" "$subcommand" || true; done
+  for name in $AUDIO;      do run_component "audio"      "$name" "$subcommand" || true; done
   for name in $NETWORKS;   do run_component "networks"   "$name" "$subcommand" || true; done
 }
 

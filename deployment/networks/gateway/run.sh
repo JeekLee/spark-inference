@@ -27,7 +27,11 @@ esac
 case "$CMD" in
   up)       docker compose --env-file "$ENV_FILE" up -d --build ;;
   down)     docker compose --env-file "$ENV_FILE" down ;;
-  restart)  docker compose --env-file "$ENV_FILE" up -d --build ;;
+  # `--force-recreate` 필수: routes.rendered.yaml 가 bind-mount 라 내용
+  # 변경만으로는 compose 가 재생성 트리거 X → 신규 라우트가 반영 안 됨.
+  # 게이트웨이는 startup 시 한 번만 routes 파일을 읽으므로 컨테이너 자체를
+  # 재생성해야 새 라우트가 픽업된다.
+  restart)  docker compose --env-file "$ENV_FILE" up -d --build --force-recreate ;;
   ps)       docker compose --env-file "$ENV_FILE" ps ;;
   logs)     docker compose --env-file "$ENV_FILE" logs -f --tail=200 ;;
   *)        echo "error: unknown command '$CMD'" >&2; exit 1 ;;

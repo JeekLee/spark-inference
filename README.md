@@ -1,6 +1,8 @@
 # spark-inference
 
-DGX Spark(GB10/arm64) 단일 호스트에서 **vLLM + TEI** 모델 (chat/embed) 과 **FastAPI 오디오 모델** 을 띄우고 자체 **spark-gateway** (FastAPI + httpx) 한 포트로 통합 노출하는 인프라.
+DGX Spark(GB10/arm64) 단일 호스트에서 **OpenAI-compat 추론 모델** (vLLM/TEI 기반 chat/embed) + **FastAPI 오디오 모델** (multipart/binary) 을 띄우고 자체 **spark-gateway** (FastAPI + httpx) 한 포트(default `127.0.0.1:10080`) 로 통합 노출하는 인프라.
+
+클라이언트는 단일 Bearer 키로 OpenAI 컨벤션의 `/v1/{chat/completions, embeddings, models}` 와 `/v1/audio/{chords, notes, stems, ...}` 모두 호출.
 
 ## 구조
 
@@ -29,7 +31,7 @@ spark-inference/
 ## Quickstart (local)
 
 ```bash
-# 1. 매니페스트 + env 파일 생성
+# 1. 매니페스트 + 게이트웨이 env 생성
 cp envs/_manifest.example.env envs/_manifest.local.env
 cp envs/networks/gateway/.env.example envs/networks/gateway/.env.local
 # → .env.local 의 GATEWAY_MASTER_KEY 채움 (예: openssl rand -hex 24)
@@ -38,8 +40,9 @@ cp envs/networks/gateway/.env.example envs/networks/gateway/.env.local
 cp -r deployment/inferences/_template-vllm     deployment/inferences/qwen3-8b
 cp -r envs/inferences/_template-vllm           envs/inferences/qwen3-8b
 cp     envs/inferences/qwen3-8b/.env.example   envs/inferences/qwen3-8b/.env.local
-# → docker-compose.yml / gateway.yaml / .env.local 의 placeholder를 채우고
+# → docker-compose.yml / gateway.yaml / .env.local 의 placeholder 를 채우고
 # → envs/_manifest.local.env::INFERENCES 에 "qwen3-8b" 추가
+# (오디오 컴포넌트는 _template-audio 를 같은 패턴으로 복사 + ::AUDIO 등재)
 
 # 3. 부팅
 make local-up
@@ -48,6 +51,8 @@ make local-up
 KEY=$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)
 curl -s -H "Authorization: Bearer $KEY" http://localhost:10080/v1/models | jq
 ```
+
+전체 라우팅 / 트러블슈팅 / 메트릭은 `deployment/networks/gateway/README.md`.
 
 ## 네트워크 노출 정책 (default-safe + auth required)
 
@@ -64,4 +69,4 @@ curl -s -H "Authorization: Bearer $KEY" http://localhost:10080/v1/models | jq
 
 **왜?** no-auth 게이트웨이가 0.0.0.0 으로 떠 있으면 LAN/공용IP 노출 시 누구나 모델 호출 → 비용/리소스 도용. auth 를 항상 강제하면 그 시나리오가 코드 단계에서 불가능해집니다 (default-safe).
 
-자세한 컨벤션과 불변 규칙은 `CLAUDE.md`, 세부 설정 절차는 `deployment/networks/gateway/README.md` 참고.
+자세한 컨벤션과 불변 규칙은 `CLAUDE.md` 참고.

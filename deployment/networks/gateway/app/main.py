@@ -211,7 +211,7 @@ async def embeddings(request: Request) -> StreamingResponse:
     return await _proxy_inference_by_model_field(request, "embeddings")
 
 
-# ── /audio/* path-keyed proxy (multipart/binary OK) ────────────────────────
+# ── /v1/audio/* path-keyed proxy (multipart/binary OK) ────────────────────
 def _make_audio_handler(target_url: str):
     async def handler(request: Request) -> StreamingResponse:
         return await _proxy(request, target_url)

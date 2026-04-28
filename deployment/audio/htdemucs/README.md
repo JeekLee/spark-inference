@@ -4,7 +4,7 @@ Meta [htdemucs](https://github.com/facebookresearch/demucs) (Hybrid Transformer 
 
 ## API
 
-`POST /audio/stems` — spark-gateway (default 10080) 너머로 호출.
+`POST /v1/audio/stems` — spark-gateway (default 10080) 너머로 호출.
 
 ```bash
 KEY="$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)"
@@ -12,7 +12,7 @@ curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@song.wav" \
   --output stems.zip \
-  http://127.0.0.1:10080/audio/stems
+  http://127.0.0.1:10080/v1/audio/stems
 unzip stems.zip
 # drums.wav  bass.wav  other.wav  vocals.wav
 ```

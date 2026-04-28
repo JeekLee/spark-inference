@@ -3,5 +3,5 @@
 # Copy 후 `__NAME__` 을 컴포넌트 이름으로, path / target 의 마지막 segment
 # 를 실제 endpoint 이름으로 치환 (예: chords / notes / stems).
 - kind: audio
-  path: /audio/__NAME__
+  path: /v1/audio/__NAME__
   target: http://__NAME__:8000/__NAME__

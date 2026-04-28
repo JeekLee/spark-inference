@@ -4,14 +4,14 @@ Spotify [BasicPitch](https://github.com/spotify/basic-pitch) — polyphonic note
 
 ## API
 
-`POST /audio/notes` — spark-gateway (default 10080) 너머로 호출.
+`POST /v1/audio/notes` — spark-gateway (default 10080) 너머로 호출.
 
 ```bash
 KEY="$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@clip.wav" \
-  http://127.0.0.1:10080/audio/notes
+  http://127.0.0.1:10080/v1/audio/notes
 ```
 
 응답:

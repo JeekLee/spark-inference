@@ -1,11 +1,11 @@
-# Audio component template — FastAPI service exposed via LiteLLM pass-through.
+# Audio component template — FastAPI service exposed directly to the host
+# (LiteLLM v1.82.3 의 pass_through_endpoints 가 multipart 요청을 처리하지
+# 못해 게이트웨이 통합 대신 컴포넌트별 host port + 자체 Bearer auth 채택.
+# CLAUDE.md invariant 11 참조).
 #
 # After copying this template to deployment/audio/<name>/, replace every
 # `__NAME__` / `__NAME_UPPER__` placeholder. Adjust runtime/GPU section if
 # the model needs a GPU (madmom/basic-pitch are CPU; htdemucs typically GPU).
-#
-# CLAUDE.md invariant 11: audio backends must NOT expose `ports:` to host —
-# 게이트웨이(LiteLLM) 통해서만 접근. 인증/로깅이 한 곳에 모임.
 services:
   __NAME__:
     build:
@@ -15,12 +15,19 @@ services:
     container_name: spark-inference-__NAME__
     restart: unless-stopped
 
+    # default-safe bind (loopback) + auth 필수 — LiteLLM 과 동일한 정책.
+    # 0.0.0.0 으로 풀 때는 호스트 방화벽 / 외부 접근 정책 따로 점검.
+    ports:
+      - "${__NAME_UPPER___BIND:-127.0.0.1}:${__NAME_UPPER___HOST_PORT:?set __NAME_UPPER___HOST_PORT in env}:8000"
+
     # GPU 가 필요할 때만 아래 두 라인을 추가:
     #   runtime: nvidia
     #   environment:
     #     NVIDIA_VISIBLE_DEVICES: ${__NAME_UPPER___GPU_IDS:-0}
     environment:
       __NAME_UPPER___LOG_LEVEL: ${__NAME_UPPER___LOG_LEVEL:-INFO}
+      # Bearer 토큰. 비어있으면 boot 거부 (`:?` 가드).
+      AUDIO_MASTER_KEY: ${AUDIO_MASTER_KEY:?AUDIO_MASTER_KEY required — see envs/audio/__NAME__/.env.example}
 
     networks:
       - spark-inference-net

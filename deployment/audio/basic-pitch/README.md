@@ -4,14 +4,14 @@ Spotify [BasicPitch](https://github.com/spotify/basic-pitch) — polyphonic note
 
 ## API
 
-`POST /audio/notes` (LiteLLM 게이트웨이 너머):
+`POST /notes` — 호스트 포트 직접 노출 (`BASIC_PITCH_HOST_PORT`, default 10082).
 
 ```bash
-KEY="$(grep -E '^LITELLM_MASTER_KEY=' envs/networks/litellm/.env.local | cut -d= -f2-)"
+KEY="$(grep -E '^AUDIO_MASTER_KEY=' envs/audio/basic-pitch/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@clip.wav" \
-  http://127.0.0.1:10080/audio/notes
+  http://127.0.0.1:10082/notes
 ```
 
 응답:
@@ -33,6 +33,10 @@ curl -X POST \
 - **CPU only** — TF inference 는 노트 길이의 ~수배 속도로 빠름. GPU 자원 안 점유. madmom-chord / Qwen3-8B 와 같은 호스트 코로케이션 OK.
 - **모델 로드는 startup 시 한 번** — `Model(ICASSP_2022_MODEL_PATH)` 를 모듈 로드 시 한 번 만들어두고 `predict()` 에 주입. lazy-init 으로 첫 요청 지연되는 일 없음.
 - **재현성**: PyPI 패키지(basic-pitch==0.4.0) 가 모델 weights(ICASSP 2022) 를 동봉 — git pin 같은 외부 의존 없음.
+
+## 인증
+
+Bearer auth — startup 시 `AUDIO_MASTER_KEY` env var 필수, 미설정/공백이면 boot 거부. LiteLLM 의 `LITELLM_MASTER_KEY` 와 같은 값으로 설정하면 클라이언트는 한 키로 chat/embed + audio 양쪽 호출 가능.
 
 ## 입력 포맷
 

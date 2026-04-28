@@ -1,0 +1,30 @@
+# networks/gateway — spark-inference 단일 게이트웨이.
+#
+# default-safe loopback bind + master key 필수 — CLAUDE.md invariant 11.
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spark-network-gateway:local
+    container_name: spark-inference-gateway
+    restart: unless-stopped
+
+    ports:
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_HOST_PORT:-10080}:8000"
+
+    environment:
+      GATEWAY_LOG_LEVEL: ${GATEWAY_LOG_LEVEL:-INFO}
+      GATEWAY_MASTER_KEY: ${GATEWAY_MASTER_KEY:?GATEWAY_MASTER_KEY required — see envs/networks/gateway/.env.example}
+      GATEWAY_ROUTES_PATH: /app/routes.yaml
+
+    volumes:
+      - ./routes.rendered.yaml:/app/routes.yaml:ro
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — audio/basic-pitch.
+- kind: audio
+  path: /audio/notes
+  target: http://basic-pitch:8000/notes

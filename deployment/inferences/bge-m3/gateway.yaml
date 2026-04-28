@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — bge-m3 (vLLM embed task, OpenAI-compat).
+- kind: inference
+  model: bge-m3
+  url: http://bge-m3:8000

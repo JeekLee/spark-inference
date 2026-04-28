@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — qwen3-32b (vLLM, OpenAI-compat).
+- kind: inference
+  model: qwen3-32b
+  url: http://qwen3-32b:8000

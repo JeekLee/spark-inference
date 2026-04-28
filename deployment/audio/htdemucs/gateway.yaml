@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — audio/htdemucs.
+- kind: audio
+  path: /audio/stems
+  target: http://htdemucs:8000/stems

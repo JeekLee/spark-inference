@@ -10,7 +10,7 @@
 #   make local-restart            # restart everything
 #   make local-ps                 # `docker compose ps` for every component
 #   make local-logs               # tail logs for all components
-#   make local-logs-c C=litellm   # tail logs for a single component
+#   make local-logs-c C=gateway   # tail logs for a single component
 #                                 # (matches a directory under deployment/)
 #
 # `dev` and `prod` variants follow the same pattern and read

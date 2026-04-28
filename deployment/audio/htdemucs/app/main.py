@@ -2,7 +2,9 @@
 
 `POST /stems` 는 multipart 오디오를 받아 4-stem(drums/bass/other/vocals)
 으로 분리하고 zip 으로 묶어 반환한다.
-`Authorization: Bearer <AUDIO_MASTER_KEY>` 헤더 필수.
+
+게이트웨이(`networks/gateway`) 가 인증 + 외부 노출 담당. 컴포넌트 자체는
+internal docker network 만 노출 (compose 의 `ports:` 없음) — 자체 auth 불필요.
 
 모델은 startup 시 한 번 로드. v1 은 CPU only — torch.cuda.is_available()
 가 True 면 자동으로 cuda 사용 (GPU 베이스 이미지로 빌드한 경우 대비).
@@ -29,24 +31,11 @@ import torch
 from demucs.apply import apply_model
 from demucs.audio import AudioFile
 from demucs.pretrained import get_model
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 logging.basicConfig(level=os.environ.get("HTDEMUCS_LOG_LEVEL", "INFO"))
 log = logging.getLogger("htdemucs")
-
-_MASTER_KEY = os.environ.get("AUDIO_MASTER_KEY", "")
-if not _MASTER_KEY:
-    raise RuntimeError(
-        "AUDIO_MASTER_KEY env var must be set — see envs/audio/htdemucs/.env.example"
-    )
-
-
-async def require_bearer(authorization: str = Header(default="")) -> None:
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing or malformed Authorization header")
-    if authorization[len("Bearer "):] != _MASTER_KEY:
-        raise HTTPException(status_code=401, detail="invalid master key")
 
 
 def _save_wav_pcm16(tensor: torch.Tensor, path: Path, samplerate: int) -> None:
@@ -86,7 +75,7 @@ async def health() -> dict[str, object]:
     return {"ok": True, "service": "htdemucs", "device": _DEVICE, "sources": _SOURCES}
 
 
-@app.post("/stems", dependencies=[Depends(require_bearer)])
+@app.post("/stems")
 async def stems(audio: UploadFile = File(...)) -> StreamingResponse:
     suffix = Path(audio.filename or "upload").suffix or ".wav"
 

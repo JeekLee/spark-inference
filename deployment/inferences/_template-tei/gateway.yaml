@@ -1,0 +1,7 @@
+# Gateway 라우팅 fragment template — TEI-served embed/rerank.
+#
+# Copy 후 `__NAME__` 치환. TEI 는 OpenAI-compat /v1/embeddings 를 80 포트로
+# 서빙하므로 url 은 `http://__NAME__:80` (vLLM 의 8000 과 다름).
+- kind: inference
+  model: __NAME__
+  url: http://__NAME__:80

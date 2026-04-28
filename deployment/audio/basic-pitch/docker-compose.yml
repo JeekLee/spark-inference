@@ -1,7 +1,7 @@
 # audio/basic-pitch — polyphonic pitch transcription (Spotify BasicPitch).
 #
 # CPU only — TF inference 가 충분히 빠름. GPU 자원 안 점유.
-# CLAUDE.md invariant 11: 호스트 노출은 default-safe bind + 자체 Bearer auth.
+# CLAUDE.md invariant 11: ports 노출 X — gateway 통해서만 접근.
 services:
   basic-pitch:
     build:
@@ -11,12 +11,8 @@ services:
     container_name: spark-inference-basic-pitch
     restart: unless-stopped
 
-    ports:
-      - "${BASIC_PITCH_BIND:-127.0.0.1}:${BASIC_PITCH_HOST_PORT:?set BASIC_PITCH_HOST_PORT in env}:8000"
-
     environment:
       BASIC_PITCH_LOG_LEVEL: ${BASIC_PITCH_LOG_LEVEL:-INFO}
-      AUDIO_MASTER_KEY: ${AUDIO_MASTER_KEY:?AUDIO_MASTER_KEY required}
 
     networks:
       - spark-inference-net

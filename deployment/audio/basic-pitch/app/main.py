@@ -2,7 +2,9 @@
 
 `POST /notes` 는 multipart 오디오를 받아 ICASSP 2022 모델로 전사하고
 note 이벤트(start/end/pitch_midi/pitch_name/amplitude)를 JSON 으로 반환한다.
-`Authorization: Bearer <AUDIO_MASTER_KEY>` 헤더 필수.
+
+게이트웨이(`networks/gateway`) 가 인증 + 외부 노출 담당. 컴포넌트 자체는
+internal docker network 만 노출 (compose 의 `ports:` 없음) — 자체 auth 불필요.
 
 모델은 startup 시 한 번 로드 — TF graph 가 첫 호출에 lazy-init 되지 않게
 `Model` 객체를 미리 만들어 두고 `predict()` 에 주입한다.
@@ -17,24 +19,10 @@ from typing import Any
 
 from basic_pitch import ICASSP_2022_MODEL_PATH
 from basic_pitch.inference import Model, predict
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 logging.basicConfig(level=os.environ.get("BASIC_PITCH_LOG_LEVEL", "INFO"))
 log = logging.getLogger("basic-pitch")
-
-_MASTER_KEY = os.environ.get("AUDIO_MASTER_KEY", "")
-if not _MASTER_KEY:
-    raise RuntimeError(
-        "AUDIO_MASTER_KEY env var must be set — see envs/audio/basic-pitch/.env.example"
-    )
-
-
-async def require_bearer(authorization: str = Header(default="")) -> None:
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing or malformed Authorization header")
-    if authorization[len("Bearer "):] != _MASTER_KEY:
-        raise HTTPException(status_code=401, detail="invalid master key")
-
 
 app = FastAPI(title="basic-pitch — spark-inference audio service")
 
@@ -54,7 +42,7 @@ async def health() -> dict[str, object]:
     return {"ok": True, "service": "basic-pitch"}
 
 
-@app.post("/notes", dependencies=[Depends(require_bearer)])
+@app.post("/notes")
 async def notes(audio: UploadFile = File(...)) -> dict[str, Any]:
     suffix = Path(audio.filename or "upload").suffix or ".wav"
 

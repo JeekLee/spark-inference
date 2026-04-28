@@ -4,15 +4,15 @@ Meta [htdemucs](https://github.com/facebookresearch/demucs) (Hybrid Transformer 
 
 ## API
 
-`POST /stems` — 호스트 포트 직접 노출 (`HTDEMUCS_HOST_PORT`, default 10083).
+`POST /audio/stems` — spark-gateway (default 10080) 너머로 호출.
 
 ```bash
-KEY="$(grep -E '^AUDIO_MASTER_KEY=' envs/audio/htdemucs/.env.local | cut -d= -f2-)"
+KEY="$(grep -E '^GATEWAY_MASTER_KEY=' envs/networks/gateway/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@song.wav" \
   --output stems.zip \
-  http://127.0.0.1:10083/stems
+  http://127.0.0.1:10080/audio/stems
 unzip stems.zip
 # drums.wav  bass.wav  other.wav  vocals.wav
 ```
@@ -23,12 +23,12 @@ unzip stems.zip
 
 - **v1 은 CPU only** — arm64+Blackwell+CUDA 베이스 이미지 마이그레이션은 별도 PR 로 분리. 30s 클립 기준 CPU 분리 ~60s, GPU 활성 시 ~3s 예상 (DGX Spark sm_120).
 - **모델 로드는 startup 시 한 번** — `get_model("htdemucs")` 로 만든 모델 객체를 모듈 로드 시 한 번 만들고 요청마다 재사용.
-- **demucs API 선택**: 4.0.1 의 high-level `Separator` (`demucs.api`) 는 unreleased — main 에만 존재. lower-level `apply_model` / `AudioFile` / `save_audio` 조합으로 직접 inference.
+- **demucs API 선택**: 4.0.1 의 high-level `Separator` (`demucs.api`) 는 unreleased — main 에만 존재. lower-level `apply_model` / `AudioFile` 조합으로 직접 inference. WAV 출력은 stdlib `wave` 로 (torchaudio.save 가 신버전에서 torchcodec 의존하게 됨).
 - **재현성**: `demucs==4.0.1` PyPI 핀. 모델 weights 는 첫 부팅 시 `~/.cache/torch/hub` 로 자동 다운로드.
 
 ## 인증
 
-Bearer auth — startup 시 `AUDIO_MASTER_KEY` env var 필수, 미설정/공백이면 boot 거부. LiteLLM 의 `LITELLM_MASTER_KEY` 와 같은 값으로 설정하면 클라이언트는 한 키로 chat/embed + audio 양쪽 호출 가능.
+게이트웨이(`networks/gateway`) 가 Bearer 검증 담당. 컴포넌트 자체에는 별도 auth 없음.
 
 ## 입력 포맷
 

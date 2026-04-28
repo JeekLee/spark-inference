@@ -2,6 +2,7 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
 
-# Meta htdemucs hybrid transformer source separation. demucs 가 torch 를
-# transitive dep 으로 끌어오며 arm64 에선 PyPI default = CPU 빌드.
+# Meta htdemucs hybrid transformer source separation. torch / torchaudio 는
+# Dockerfile 의 별도 pip 호출로 cu124 인덱스에서 미리 설치하므로 여기엔
+# demucs 만 둠 (이미 충족된 dep 은 다시 안 가져옴).
 demucs==4.0.1

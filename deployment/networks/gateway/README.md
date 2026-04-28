@@ -2,6 +2,8 @@
 
 spark-inference 단일 게이트웨이. FastAPI + httpx, 한 포트(default 10080) 뒤에 chat/embed (vLLM/TEI) + audio (multipart/binary) 통합.
 
+> 이 문서는 게이트웨이의 **아키텍처 / 라우팅 메커니즘 / 트러블슈팅**. 호출자 입장의 **엔드포인트 / 요청·응답 스키마 / 클라이언트 가이드**는 [`API.md`](API.md).
+
 ## 왜 LiteLLM 이 아니라 자체 게이트웨이?
 
 LiteLLM v1.82.3 의 `pass_through_endpoints` 는 라우트 시그니처에 `custom_body: Optional[dict]` 가 박혀 있어 FastAPI 가 모든 요청 body 를 JSON dict 로 파싱 시도. multipart/form-data 바이트는 dict_type 검증 실패 → 422/500. 우리 라인업은 단일 호스트 + 자체 호스팅 모델뿐이라 LiteLLM 의 multi-provider/load-balancer/cost-tracker 가치가 거의 없음. 직접 짜는 비용 ≈ httpx 프록시 ~150 LOC. 그래서 자체 구현.

@@ -57,4 +57,5 @@
 ## 문서 포인터
 
 - **`README.md`** — Quickstart
-- **`deployment/networks/gateway/README.md`** — Gateway 사용법 / 라우팅 모델 / 클라이언트 예제
+- **`deployment/networks/gateway/API.md`** — 클라이언트 API 스펙 (호출자 입장: 엔드포인트, 스키마, 예제, 에러 코드)
+- **`deployment/networks/gateway/README.md`** — Gateway 아키텍처 / 라우팅 메커니즘 / 트러블슈팅

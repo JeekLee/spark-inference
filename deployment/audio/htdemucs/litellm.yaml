@@ -1,0 +1,8 @@
+# LiteLLM pass-through fragment — audio/htdemucs.
+#
+# /audio/stems  →  http://htdemucs:8000/stems
+#
+# render.sh 가 envs/_manifest.<target>.env::AUDIO 에 htdemucs 가
+# 등재된 경우만 이 fragment 를 머지한다.
+  - path: "/audio/stems"
+    target: "http://htdemucs:8000/stems"

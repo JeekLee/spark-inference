@@ -1,0 +1,28 @@
+# audio/htdemucs — source separation (Meta htdemucs, 4-stem).
+#
+# v1 은 CPU only — arm64+Blackwell+CUDA 베이스 이미지 마이그는 별도 PR 로
+# 분리해 라인업 부팅을 우선. GPU 가속이 필요해지면 아래 두 라인 활성:
+#   runtime: nvidia
+#   NVIDIA_VISIBLE_DEVICES: ${HTDEMUCS_GPU_IDS:-0}
+# (단 Dockerfile 의 베이스 이미지도 CUDA 지원으로 교체 필요.)
+#
+# CLAUDE.md invariant 11: ports 노출 X. 게이트웨이(LiteLLM) 통해서만 접근.
+services:
+  htdemucs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spark-audio-htdemucs:local
+    container_name: spark-inference-htdemucs
+    restart: unless-stopped
+
+    environment:
+      HTDEMUCS_LOG_LEVEL: ${HTDEMUCS_LOG_LEVEL:-INFO}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

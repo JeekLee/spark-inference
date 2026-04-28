@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+# Meta htdemucs hybrid transformer source separation. demucs 가 torch 를
+# transitive dep 으로 끌어오며 arm64 에선 PyPI default = CPU 빌드.
+demucs==4.0.1

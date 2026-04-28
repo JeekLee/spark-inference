@@ -4,14 +4,14 @@ Madmom (CPJKU) 의 CNN+CRF chord recognition 파이프라인 — audio → time-
 
 ## API
 
-`POST /audio/chords` (LiteLLM 게이트웨이 너머):
+`POST /chords` — 호스트 포트 직접 노출 (`MADMOM_CHORD_HOST_PORT`, default 10081).
 
 ```bash
-KEY="$(grep -E '^LITELLM_MASTER_KEY=' envs/networks/litellm/.env.local | cut -d= -f2-)"
+KEY="$(grep -E '^AUDIO_MASTER_KEY=' envs/audio/madmom-chord/.env.local | cut -d= -f2-)"
 curl -X POST \
   -H "Authorization: Bearer $KEY" \
   -F "audio=@clip.wav" \
-  http://127.0.0.1:10080/audio/chords
+  http://127.0.0.1:10081/chords
 ```
 
 응답:
@@ -33,6 +33,10 @@ curl -X POST \
 - **CPU only** — Madmom 은 numpy/scipy 기반. GPU 사용 X. Qwen3-8B 와 같은 호스트에 코로케이션해도 GPU 자원 경쟁 없음.
 - **모델 로드는 startup 시 한 번** — `CNNChordFeatureProcessor` / `CRFChordRecognitionProcessor` 두 processor 모두 stateless 라 동시 호출 안전 (FastAPI worker 다중도 OK).
 - **의존성 핀**: numpy<2.0, cython<3.0, Python 3.10 — Madmom 0.16.1 (PyPI) 는 numpy>=1.20 / Python>=3.10 와 충돌. 대신 git 의 특정 commit SHA 로 핀 설치 (`Dockerfile::MADMOM_COMMIT`). 재현성 + 외부 코드 무결성 양쪽 다 잡음. ABI 안정성 위해 build deps 명시.
+
+## 인증
+
+Bearer auth — startup 시 `AUDIO_MASTER_KEY` env var 필수, 미설정/공백이면 boot 거부. LiteLLM 의 `LITELLM_MASTER_KEY` 와 같은 값으로 설정하면 클라이언트는 한 키로 chat/embed + audio 양쪽 호출 가능.
 
 ## 입력 포맷
 

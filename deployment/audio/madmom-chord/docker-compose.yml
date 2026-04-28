@@ -1,0 +1,23 @@
+# audio/madmom-chord — chord recognition (Madmom CNN+CRF, major/minor).
+#
+# CPU only — Madmom 은 전적으로 CPU 기반. GPU 자원 안 점유.
+# CLAUDE.md invariant 11: ports 노출 X. 게이트웨이(LiteLLM) 통해서만 접근.
+services:
+  madmom-chord:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spark-audio-madmom-chord:local
+    container_name: spark-inference-madmom-chord
+    restart: unless-stopped
+
+    environment:
+      MADMOM_CHORD_LOG_LEVEL: ${MADMOM_CHORD_LOG_LEVEL:-INFO}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

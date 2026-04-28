@@ -1,7 +1,11 @@
-# bge-m3 (BAAI, multilingual embedding) — served by vLLM in `--task embed`
-# mode. OpenAI-compat /v1/embeddings; XLM-RoBERTa backbone.
+# bge-m3 (BAAI, multilingual embedding) — served by vLLM in pooling runner
+# mode (`--runner pooling`). OpenAI-compat /v1/embeddings; XLM-RoBERTa backbone.
 # Dense 1024-dim only (sparse + ColBERT 변종은 표준 endpoint 미지원).
 # Model card: https://huggingface.co/BAAI/bge-m3
+#
+# vLLM v0.19.1 에서 `--task embed` 가 deprecated 되고 `--runner pooling`
+# 으로 교체됨 (모든 임베딩/리랭커 모델에 공통). `--runner` 기본값은 auto
+# 라 모델 config 에서 추론 가능하지만 explicit 한 게 boot 시 의도 명확.
 #
 # Why vLLM (not TEI): HF의 TEI 컨테이너는 arm64 manifest 부재 — Blackwell
 # 호스트에서 풀 불가. vLLM 은 동일 이미지로 chat + embed 둘 다 처리.
@@ -24,7 +28,7 @@ services:
     command: >
       --model /model
       --served-model-name bge-m3
-      --task embed
+      --runner pooling
       --port 8000
       --host 0.0.0.0
       --tensor-parallel-size ${BGE_M3_TP_SIZE:-1}

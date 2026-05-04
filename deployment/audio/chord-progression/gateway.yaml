@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — audio/chord-progression.
+- kind: audio
+  path: /v1/audio/chord-progression
+  target: http://chord-progression:8000/generate

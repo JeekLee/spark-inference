@@ -1,0 +1,26 @@
+# audio/chord-progression — chord progression recommendation via qwen3-8b LLM.
+#
+# 자체 추론 X — 같은 docker network 의 qwen3-8b vLLM 백엔드를 호출해 chord
+# 도메인 프롬프팅으로 결과 생성. 따라서 GPU 자원 안 점유.
+# CLAUDE.md invariant 11: ports 노출 X — gateway 통해서만 접근.
+services:
+  chord-progression:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spark-audio-chord-progression:local
+    container_name: spark-inference-chord-progression
+    restart: unless-stopped
+
+    environment:
+      CHORD_PROGRESSION_LOG_LEVEL: ${CHORD_PROGRESSION_LOG_LEVEL:-INFO}
+      CHORD_PROGRESSION_UPSTREAM_URL: ${CHORD_PROGRESSION_UPSTREAM_URL:-http://qwen3-8b:8000}
+      CHORD_PROGRESSION_UPSTREAM_MODEL: ${CHORD_PROGRESSION_UPSTREAM_MODEL:-qwen3-8b}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

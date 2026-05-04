@@ -24,6 +24,7 @@ Auth:      Authorization: Bearer <GATEWAY_MASTER_KEY>
 | chord recognition | `/v1/audio/chords` | Madmom CNN+CRF (CPU) |
 | note transcription | `/v1/audio/notes` | Spotify BasicPitch (CPU TF) |
 | source separation | `/v1/audio/stems` | Meta htdemucs 4-stem (GPU CUDA) |
+| chord progression recommendation | `/v1/audio/chord-progression` | qwen3-8b 프롬프팅 wrapper (JSON in/out, GPU 자원은 qwen3-8b 가 책임) |
 
 매니페스트(`envs/_manifest.<target>.env`) 에 등재된 컴포넌트만 라우팅됨. `/v1/models` 또는 게이트웨이 logs 로 활성 set 확인 가능.
 
@@ -151,13 +152,72 @@ unzip stems.zip
 - 각 stem 의 samplerate / 길이 = 원본과 동일
 - 입력 mono → 내부적으로 stereo upsample 처리됨
 
-### 3-7. `GET /health`, `GET /metrics`
+### 3-7. `POST /v1/audio/chord-progression` — 코드 진행 추천
+
+**JSON in / JSON out** (multipart 아님). 시드 코드를 받아 다음 코드를 추천하거나, 시드 없이 처음부터 진행 생성. 내부적으로 `qwen3-8b` 를 chord-domain 프롬프트 + few-shot 으로 호출.
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{
+    "seed_chords": "Am CM Dm E7",
+    "nb_chords": 8,
+    "temperature": 0.7,
+    "seed": 42
+  }' http://127.0.0.1:10080/v1/audio/chord-progression
+```
+
+```json
+{
+  "seed_chords": ["Am", "CM", "Dm", "E7"],
+  "predicted_chords": ["Am", "Dm", "G7", "CM", "Am", "Dm", "E7", "CM"],
+  "raw": "Am Dm G7 CM Am Dm E7 CM"
+}
+```
+
+**요청 필드**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `seed_chords` | str (optional) | `null` | 공백 구분 chord 심볼. 없으면 처음부터 생성 |
+| `nb_chords` | int (1–64) | `8` | 생성할 신규 chord 개수 |
+| `temperature` | float (0–2) | `0.7` | 샘플링 온도. 0.5–0.9 권장 |
+| `seed` | int (optional) | `null` | 결정성 (vLLM seed 전달 — best-effort) |
+
+**응답 필드**
+
+- `seed_chords`: 입력 시드를 토큰화한 결과 (입력 검증용, 빈 배열 = 시드 없음)
+- `predicted_chords`: 추천된 chord 심볼 배열. 길이 ≤ `nb_chords` (regex 필터 통과한 토큰만)
+- `raw`: LLM 원본 응답 (디버그용)
+
+**chord 심볼 포맷**
+
+regex: `^[A-G][#b]?(M7|m7b5|m7|M|m|7|dim|aug|o|sus2|sus4)?(/[A-G][#b]?)?$`
+
+- 루트: `A`–`G` + `#`/`b` accidental optional
+- quality: `M`(major), `m`(minor), `7`, `M7`, `m7`, `m7b5`, `dim`, `aug`, `o`, `sus2`, `sus4`
+- 인버전: `CM/E` (베이스 음 명시)
+- 예: `Am`, `CM`, `G7`, `Dm7`, `F#m`, `Bb`, `CM/E`
+
+**보장 / 미보장**
+
+- `predicted_chords` 의 모든 토큰은 위 regex 를 통과 — 클라이언트는 추가 검증 불필요
+- `nb_chords=N` 요청해도 LLM 출력이 짧으면 N 보다 적게 반환될 수 있음 (정상)
+- 시드 코드의 화성적 보존은 LLM 품질에 의존 — *대체로* 자연스럽지만 결정적 보장 X
+- `seed` 동일 시 같은 출력 — 프롬프트/모델 변경 없을 때만
+
+**한계**
+
+- `nb_chords > 16` 시 latency 비선형 증가 (LLM 이 long-tail 생성). 실용 범위 ≤ 16 권장
+- 한국어/특수 도메인 (jazz, modal) 학습 fine-tune 안 됨 — pop / functional harmony 위주
+- harmonic rhythm (각 chord 가 몇 박자) 모델링 X — 코드 시퀀스만
+
+### 3-8. `GET /health`, `GET /metrics`
 
 auth 면제. 운영용.
 
 ```bash
 curl http://127.0.0.1:10080/health
-# {"ok":true,"service":"spark-gateway","inference_models":["qwen3-8b","bge-m3"],"audio_routes":["/v1/audio/chords","/v1/audio/notes","/v1/audio/stems"]}
+# {"ok":true,"service":"spark-gateway","inference_models":["qwen3-8b","bge-m3"],"audio_routes":["/v1/audio/chords","/v1/audio/notes","/v1/audio/stems","/v1/audio/chord-progression"]}
 
 curl http://127.0.0.1:10080/metrics
 # # HELP python_gc_objects_collected_total ...
@@ -166,11 +226,14 @@ curl http://127.0.0.1:10080/metrics
 
 ## 4. 입력 오디오 포맷
 
-ffmpeg + libsndfile1 베이스라 `/v1/audio/*` 모두:
-- wav / mp3 / flac / m4a / ogg 받음
+`/v1/audio/chords`, `/v1/audio/notes`, `/v1/audio/stems` (multipart 라우트):
+
+- ffmpeg + libsndfile1 베이스 — wav / mp3 / flac / m4a / ogg 받음
 - mono / stereo 모두 OK (모델이 내부 변환)
 - multipart `audio` 필드명 고정. `Content-Type: audio/...` 권장하지만 `application/octet-stream` 도 동작
 - 사이즈 제한 명시 X (실용적으로는 GPU/메모리에 의해 제한)
+
+`/v1/audio/chord-progression` 은 multipart 가 아닌 **JSON in/out** — 위 규칙 무관 (3-7 참고).
 
 ## 5. 에러 / 상태 코드
 
@@ -195,6 +258,10 @@ ffmpeg + libsndfile1 베이스라 `/v1/audio/*` 모두:
 | `/v1/audio/chords` (4s 클립) | ~1s |
 | `/v1/audio/notes` (4s 클립) | ~50ms |
 | `/v1/audio/stems` (3-4s 클립) | cold ~2.2s, warm ~0.9-1.2s |
+| `/v1/audio/chord-progression` (nb=4) | p50 ~700ms |
+| `/v1/audio/chord-progression` (nb=8) | p50 ~850ms |
+| `/v1/audio/chord-progression` (nb=16) | p50 ~2s |
+| `/v1/audio/chord-progression` (nb=32) | ~18s ⚠️ — 비선형 점프, ≤16 권장 |
 
 지표일 뿐 SLO 아님. 동시성 / 큐잉 정책은 명시적 보장 X (현재 단일 워커).
 
@@ -230,6 +297,11 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/aud
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/audio/notes" | jq
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" --output /tmp/stems.zip "$GW/v1/audio/stems" \
   && unzip -l /tmp/stems.zip
+
+# chord progression (JSON, 시드 있음)
+curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"seed_chords":"Am CM Dm E7","nb_chords":8,"temperature":0.7,"seed":42}' \
+  "$GW/v1/audio/chord-progression" | jq
 ```
 
 ## 9. 보장하지 않는 것

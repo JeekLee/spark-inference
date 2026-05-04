@@ -24,7 +24,8 @@ Auth:      Authorization: Bearer <GATEWAY_MASTER_KEY>
 | chord recognition | `/v1/audio/chords` | Madmom CNN+CRF (CPU) |
 | note transcription | `/v1/audio/notes` | Spotify BasicPitch (CPU TF) |
 | source separation | `/v1/audio/stems` | Meta htdemucs 4-stem (GPU CUDA) |
-| chord progression recommendation | `/v1/audio/chord-progression` | qwen3-8b 프롬프팅 wrapper (JSON in/out, GPU 자원은 qwen3-8b 가 책임) |
+
+**gateway 의 책임 범위** = dedicated 모델 호스팅 + OpenAI-compat 라우팅. 음악 도메인 로직 (chord 표기 매핑, key detection, MIDI 분석, chord 진행 추천 등) 은 클라이언트 책임 — §10 참조.
 
 매니페스트(`envs/_manifest.<target>.env`) 에 등재된 컴포넌트만 라우팅됨. `/v1/models` 또는 게이트웨이 logs 로 활성 set 확인 가능.
 
@@ -152,72 +153,13 @@ unzip stems.zip
 - 각 stem 의 samplerate / 길이 = 원본과 동일
 - 입력 mono → 내부적으로 stereo upsample 처리됨
 
-### 3-7. `POST /v1/audio/chord-progression` — 코드 진행 추천
-
-**JSON in / JSON out** (multipart 아님). 시드 코드를 받아 다음 코드를 추천하거나, 시드 없이 처음부터 진행 생성. 내부적으로 `qwen3-8b` 를 chord-domain 프롬프트 + few-shot 으로 호출.
-
-```bash
-curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{
-    "seed_chords": "Am CM Dm E7",
-    "nb_chords": 8,
-    "temperature": 0.7,
-    "seed": 42
-  }' http://127.0.0.1:10080/v1/audio/chord-progression
-```
-
-```json
-{
-  "seed_chords": ["Am", "CM", "Dm", "E7"],
-  "predicted_chords": ["Am", "Dm", "G7", "CM", "Am", "Dm", "E7", "CM"],
-  "raw": "Am Dm G7 CM Am Dm E7 CM"
-}
-```
-
-**요청 필드**
-
-| 필드 | 타입 | 기본값 | 설명 |
-|---|---|---|---|
-| `seed_chords` | str (optional) | `null` | 공백 구분 chord 심볼. 없으면 처음부터 생성 |
-| `nb_chords` | int (1–64) | `8` | 생성할 신규 chord 개수 |
-| `temperature` | float (0–2) | `0.7` | 샘플링 온도. 0.5–0.9 권장 |
-| `seed` | int (optional) | `null` | 결정성 (vLLM seed 전달 — best-effort) |
-
-**응답 필드**
-
-- `seed_chords`: 입력 시드를 토큰화한 결과 (입력 검증용, 빈 배열 = 시드 없음)
-- `predicted_chords`: 추천된 chord 심볼 배열. 길이 ≤ `nb_chords` (regex 필터 통과한 토큰만)
-- `raw`: LLM 원본 응답 (디버그용)
-
-**chord 심볼 포맷**
-
-regex: `^[A-G][#b]?(M7|m7b5|m7|M|m|7|dim|aug|o|sus2|sus4)?(/[A-G][#b]?)?$`
-
-- 루트: `A`–`G` + `#`/`b` accidental optional
-- quality: `M`(major), `m`(minor), `7`, `M7`, `m7`, `m7b5`, `dim`, `aug`, `o`, `sus2`, `sus4`
-- 인버전: `CM/E` (베이스 음 명시)
-- 예: `Am`, `CM`, `G7`, `Dm7`, `F#m`, `Bb`, `CM/E`
-
-**보장 / 미보장**
-
-- `predicted_chords` 의 모든 토큰은 위 regex 를 통과 — 클라이언트는 추가 검증 불필요
-- `nb_chords=N` 요청해도 LLM 출력이 짧으면 N 보다 적게 반환될 수 있음 (정상)
-- 시드 코드의 화성적 보존은 LLM 품질에 의존 — *대체로* 자연스럽지만 결정적 보장 X
-- `seed` 동일 시 같은 출력 — 프롬프트/모델 변경 없을 때만
-
-**한계**
-
-- `nb_chords > 16` 시 latency 비선형 증가 (LLM 이 long-tail 생성). 실용 범위 ≤ 16 권장
-- 한국어/특수 도메인 (jazz, modal) 학습 fine-tune 안 됨 — pop / functional harmony 위주
-- harmonic rhythm (각 chord 가 몇 박자) 모델링 X — 코드 시퀀스만
-
-### 3-8. `GET /health`, `GET /metrics`
+### 3-7. `GET /health`, `GET /metrics`
 
 auth 면제. 운영용.
 
 ```bash
 curl http://127.0.0.1:10080/health
-# {"ok":true,"service":"spark-gateway","inference_models":["qwen3-8b","bge-m3"],"audio_routes":["/v1/audio/chords","/v1/audio/notes","/v1/audio/stems","/v1/audio/chord-progression"]}
+# {"ok":true,"service":"spark-gateway","inference_models":["qwen3-8b","bge-m3"],"audio_routes":["/v1/audio/chords","/v1/audio/notes","/v1/audio/stems"]}
 
 curl http://127.0.0.1:10080/metrics
 # # HELP python_gc_objects_collected_total ...
@@ -226,14 +168,12 @@ curl http://127.0.0.1:10080/metrics
 
 ## 4. 입력 오디오 포맷
 
-`/v1/audio/chords`, `/v1/audio/notes`, `/v1/audio/stems` (multipart 라우트):
+`/v1/audio/*` 모두 (multipart):
 
 - ffmpeg + libsndfile1 베이스 — wav / mp3 / flac / m4a / ogg 받음
 - mono / stereo 모두 OK (모델이 내부 변환)
 - multipart `audio` 필드명 고정. `Content-Type: audio/...` 권장하지만 `application/octet-stream` 도 동작
 - 사이즈 제한 명시 X (실용적으로는 GPU/메모리에 의해 제한)
-
-`/v1/audio/chord-progression` 은 multipart 가 아닌 **JSON in/out** — 위 규칙 무관 (3-7 참고).
 
 ## 5. 에러 / 상태 코드
 
@@ -258,10 +198,6 @@ curl http://127.0.0.1:10080/metrics
 | `/v1/audio/chords` (4s 클립) | ~1s |
 | `/v1/audio/notes` (4s 클립) | ~50ms |
 | `/v1/audio/stems` (3-4s 클립) | cold ~2.2s, warm ~0.9-1.2s |
-| `/v1/audio/chord-progression` (nb=4) | p50 ~700ms |
-| `/v1/audio/chord-progression` (nb=8) | p50 ~850ms |
-| `/v1/audio/chord-progression` (nb=16) | p50 ~2s |
-| `/v1/audio/chord-progression` (nb=32) | ~18s ⚠️ — 비선형 점프, ≤16 권장 |
 
 지표일 뿐 SLO 아님. 동시성 / 큐잉 정책은 명시적 보장 X (현재 단일 워커).
 
@@ -297,11 +233,6 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/aud
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/audio/notes" | jq
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" --output /tmp/stems.zip "$GW/v1/audio/stems" \
   && unzip -l /tmp/stems.zip
-
-# chord progression (JSON, 시드 있음)
-curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"seed_chords":"Am CM Dm E7","nb_chords":8,"temperature":0.7,"seed":42}' \
-  "$GW/v1/audio/chord-progression" | jq
 ```
 
 ## 9. 보장하지 않는 것
@@ -310,3 +241,77 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/js
 - latency SLO (위 표는 측정값일 뿐)
 - 모델 가중치 / 설정 변경에 대한 backward compat — **모델 이름 (`qwen3-8b`, `bge-m3`) 은 변경 시 새 이름 부여**, 클라이언트는 응답 모델 ID 를 검증할 것
 - 정확도 — 합성 오디오는 madmom 의 학습 분포 밖. 실 음원 기준 검증 권장
+
+## 10. 도메인 로직은 클라이언트 책임
+
+gateway 는 **dedicated 모델 호스팅 + OpenAI-compat 라우팅** 만 담당합니다. 음악 이론, 표기법 매핑, key detection, MIDI 분석, chord 진행 추천 등 **도메인 로직은 클라이언트 (M4L 사이드카, web BFF, s4l 등) 가 직접 구현**합니다.
+
+원칙:
+- gateway 컴포넌트 = 한 dedicated 모델 wrap (madmom, basic-pitch, htdemucs, vLLM 모델)
+- 범용 LLM(`qwen3-8b`) 위에 도메인 prompt 를 박아 새 endpoint 를 노출하는 것은 ❌ — 그건 클라이언트/BFF 의 일
+
+이 원칙에 따라 자주 발생하는 패턴을 아래에 정리합니다.
+
+### 10-1. chord 표기 변환 (`<root>:<quality>` ↔ pop)
+
+`/v1/audio/chords` 출력은 madmom 컨벤션 (`C:maj`, `A:min`, `N`).  
+pop 표기 (`CM`, `Am`) 가 필요하면 클라이언트에서 매핑:
+
+```ts
+// ~30줄 매핑 테이블 (실 구현은 클라이언트 repo)
+function toPop(label: string): string | null {
+  if (label === "N") return null;                  // silence
+  const [root, qual] = label.split(":");
+  const Q: Record<string, string> = {
+    maj: "M", min: "m", "7": "7", maj7: "M7", min7: "m7", dim: "dim", aug: "aug",
+  };
+  return root + (Q[qual] ?? qual);
+}
+```
+
+연속된 동일 chord 합치기, `N` (silence) drop 도 클라이언트 책임.
+
+### 10-2. chord 진행 추천 / 다음 코드 예측
+
+dedicated chord-generation 모델은 인프라에서 제공하지 않습니다 (사전 PoC 결과 운영 부적합 — `text-chord-predictor` 출력 품질 ↓, `musiclang-chord-v2-4k` 라이브러리 broken). 대신 **클라이언트가 `/v1/chat/completions` 에 chord-domain system prompt + few-shot 으로 직접 호출**합니다.
+
+권장 패턴 (LOC ~150 정도 클라이언트 모듈):
+
+```jsonc
+// system prompt 골자 (실 system 메시지에 그대로 사용 가능)
+{
+  "role": "system",
+  "content": "You are a music theory expert. Output ONLY chord symbols on a single line, space-separated. No commentary. Use pop notation: A-G, optional #/b, quality (M, m, 7, M7, m7, m7b5, dim, aug, sus2, sus4), optional /bass."
+}
+```
+
+```jsonc
+// few-shot 예시 (assistant 응답 흉내)
+{"role": "user", "content": "Continue this chord progression with 4 more chords:\nAm CM Dm E7"}
+{"role": "assistant", "content": "Am Dm G7 CM"}
+```
+
+```jsonc
+// 마지막 user 메시지: 실제 요청
+{"role": "user", "content": "Continue this chord progression with 8 more chords:\nAm CM Dm E7"}
+```
+
+추가 사항:
+- qwen3 는 thinking 모드라 `chat_template_kwargs: {"enable_thinking": false}` 필수 — 안 그러면 `content` 가 `null` 이고 모든 토큰이 `reasoning` 으로 소비
+- 응답 파싱: `re.split(r"[\s,;|\-]+", raw)` 후 chord regex `^[A-G][#b]?(M7|m7b5|m7|M|m|7|dim|aug|o|sus2|sus4)?(/[A-G][#b]?)?$` 로 필터
+- 측정 latency: nb_chords=8 시 ~850ms, nb_chords=16 시 ~2s, 그 이상은 비선형 (≤16 권장)
+- key/exclude/validity 같은 추가 제약은 system prompt 에 박아넣는 식으로 클라이언트가 설계
+
+### 10-3. key detection
+
+별도 endpoint 없음. 클라이언트가 chord 진행 (`/v1/audio/chords` 결과 또는 사용자 입력) 을 `/v1/chat/completions` 에 던지고 "Identify the key of this chord progression" 류 프롬프트로 호출.
+
+또는 client-side 라이브러리 (예: `music21.js` 의 simple-key 알고리즘) 를 직접 사용 — gateway 호출 자체를 안 해도 됨.
+
+### 10-4. MIDI 분석
+
+gateway 의 audio 라우트는 **multipart wav/mp3/...** 만 받음. MIDI 파일 직접 입력 라우트는 없음. 클라이언트가 MIDI 를 파싱 (예: `music21.js`, `midi-parser-js`) 하거나, MIDI → audio 렌더링 후 audio 라우트 호출.
+
+---
+
+위 패턴들은 모두 클라이언트 repo 의 ground truth (예: s4l 의 `src/shared/api/`) 에서 실 구현. 이 문서는 *gateway 가 제공하는 1차 surface* 의 spec 만 담당하고, 그 위 도메인 어댑터의 책임 경계와 권장 패턴을 §10 에 명시합니다.

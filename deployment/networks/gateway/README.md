@@ -1,6 +1,6 @@
 # `networks/gateway`
 
-spark-inference 단일 게이트웨이. FastAPI + httpx, 한 포트(default 10080) 뒤에 chat/embed (vLLM/TEI) + audio (multipart/binary 또는 JSON) 통합.
+spark-inference 단일 게이트웨이. FastAPI + httpx, 한 포트(default 10080) 뒤에 chat/embed (vLLM/TEI) + audio (multipart/binary) 통합.
 
 > 이 문서는 게이트웨이의 **아키텍처 / 라우팅 메커니즘 / 트러블슈팅**. 호출자 입장의 **엔드포인트 / 요청·응답 스키마 / 클라이언트 가이드**는 [`API.md`](API.md).
 

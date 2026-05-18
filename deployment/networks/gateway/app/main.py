@@ -88,9 +88,15 @@ def _filter_request_headers(src: dict[str, str]) -> dict[str, str]:
 
     `host` 는 httpx 가 target URL 기준으로 다시 박음. `authorization` 은
     백엔드가 인증 안 하므로 떼는 게 깨끗 (백엔드 컨테이너는 internal docker
-    network 만 보임). `content-length` 는 httpx 가 다시 계산.
+    network 만 보임). `content-length` 와 `transfer-encoding` 은 httpx 가
+    `content=body` 로 다시 계산하므로 떨궈야 한다 — 안 떨구면 클라이언트가
+    chunked 로 보낸 경우 원본의 `Transfer-Encoding: chunked` 와 httpx 가
+    새로 박은 `Content-Length` 가 동시에 forward 되어 RFC 7230 §3.3.3 위반
+    (request smuggling 의심) 이 되고 uvicorn/h11 백엔드가 "Invalid HTTP
+    request received." 로 400 거부. (예: Spring AI 1.0 의 RestClient + HC5
+    streaming entity 가 정확히 이 케이스.)
     """
-    drop = {"host", "authorization", "content-length", "connection"}
+    drop = {"host", "authorization", "content-length", "transfer-encoding", "connection"}
     return {k: v for k, v in src.items() if k.lower() not in drop}
 
 

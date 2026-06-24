@@ -19,15 +19,17 @@ Auth: 모든 비-health/비-metrics 엔드포인트는 `Authorization: Bearer
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 import yaml
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.background import BackgroundTask
@@ -45,6 +47,46 @@ if not _MASTER_KEY:
 _ROUTES_PATH = Path(os.environ.get("GATEWAY_ROUTES_PATH", "/app/routes.yaml"))
 if not _ROUTES_PATH.exists():
     raise RuntimeError(f"routes file not found: {_ROUTES_PATH}")
+
+
+def _env_bool(name: str, *, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+_CODEX_ENABLED = _env_bool(
+    "GATEWAY_CODEX_ENABLED",
+    default=_env_bool("GATEWAY_CODEX_OCR_ENABLED", default=False),
+)
+_CODEX_OCR_ENABLED = _CODEX_ENABLED
+_CODEX_BIN = os.environ.get("GATEWAY_CODEX_BIN", "codex")
+_CODEX_TIMEOUT_SECONDS = float(
+    os.environ.get("GATEWAY_CODEX_TIMEOUT_SECONDS", os.environ.get("GATEWAY_CODEX_OCR_TIMEOUT_SECONDS", "120"))
+)
+_CODEX_OCR_TIMEOUT_SECONDS = _CODEX_TIMEOUT_SECONDS
+_CODEX_MAX_IMAGE_BYTES = int(
+    os.environ.get("GATEWAY_CODEX_MAX_IMAGE_BYTES", os.environ.get("GATEWAY_CODEX_OCR_MAX_BYTES", "10485760"))
+)
+_CODEX_OCR_MAX_BYTES = _CODEX_MAX_IMAGE_BYTES
+_CODEX_IMAGE_CONTENT_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+_CODEX_DEFAULT_PROMPT = (
+    "Analyze the attached image or answer the prompt. Return only the useful "
+    "result for the caller. Do not edit files, run commands, browse the network, "
+    "or do any unrelated work."
+)
+_CODEX_OCR_DEFAULT_PROMPT = (
+    "Extract all visible text from the attached image. Return only the extracted "
+    "text. Preserve line breaks when useful. If no text is visible, return an "
+    "empty string. Do not edit files, run commands, browse the network, or do "
+    "any unrelated work."
+)
+
 
 with _ROUTES_PATH.open() as fh:
     _cfg: dict[str, Any] = yaml.safe_load(fh) or {}
@@ -155,6 +197,150 @@ async def require_bearer(authorization: str = Header(default="")) -> None:
         raise HTTPException(status_code=401, detail="invalid master key")
 
 
+# ── Codex prompt/image helper ──────────────────────────────────────────────
+def _build_codex_cmd(
+    image_path: Path | None,
+    prompt: str,
+    *,
+    json_mode: bool = False,
+) -> list[str]:
+    cmd = [
+        _CODEX_BIN,
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--sandbox",
+        "read-only",
+        "--skip-git-repo-check",
+        "--ephemeral",
+        "--color",
+        "never",
+    ]
+    if json_mode:
+        cmd.append("--json")
+    cmd.append(prompt)
+    if image_path is not None:
+        # Codex CLI defines --image as variadic, so positional prompt must
+        # come before it or the prompt is parsed as another image path.
+        cmd.extend(["--image", str(image_path)])
+    return cmd
+
+
+async def _run_codex_once(image_path: Path | None, prompt: str, timeout_seconds: float) -> str:
+    cmd = _build_codex_cmd(image_path, prompt)
+    cwd = str(image_path.parent if image_path is not None else Path(tempfile.gettempdir()))
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"codex binary not found: {_CODEX_BIN}") from exc
+
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
+        raise TimeoutError("codex OCR timed out") from exc
+
+    out_text = stdout.decode("utf-8", errors="replace").strip()
+    err_text = stderr.decode("utf-8", errors="replace").strip()
+    if proc.returncode != 0:
+        detail = (err_text or out_text or "no output")[:500]
+        raise RuntimeError(f"codex failed with exit code {proc.returncode}: {detail}")
+    return out_text
+
+
+async def _stream_codex_jsonl(
+    image_path: Path | None,
+    prompt: str,
+    timeout_seconds: float,
+) -> AsyncIterator[str]:
+    cmd = _build_codex_cmd(image_path, prompt, json_mode=True)
+    cwd = str(image_path.parent if image_path is not None else Path(tempfile.gettempdir()))
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"codex binary not found: {_CODEX_BIN}") from exc
+
+    assert proc.stdout is not None
+    assert proc.stderr is not None
+    stderr = b""
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").strip()
+                if text:
+                    yield text
+            stderr = await proc.stderr.read()
+            returncode = await proc.wait()
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
+        raise TimeoutError("codex stream timed out") from exc
+
+    if returncode != 0:
+        detail = stderr.decode("utf-8", errors="replace").strip()[:500] or "no output"
+        raise RuntimeError(f"codex failed with exit code {returncode}: {detail}")
+
+
+async def _run_codex_ocr(image_path: Path, prompt: str, timeout_seconds: float) -> str:
+    return await _run_codex_once(image_path, prompt, timeout_seconds)
+
+
+async def _read_codex_image(image: UploadFile) -> tuple[bytes, str]:
+    content_type = image.content_type or "application/octet-stream"
+    suffix = _CODEX_IMAGE_CONTENT_TYPES.get(content_type)
+    if suffix is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported image content type: {content_type}",
+        )
+
+    body = await image.read()
+    if len(body) > _CODEX_MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"image exceeds max size of {_CODEX_MAX_IMAGE_BYTES} bytes",
+        )
+    return body, suffix
+
+
+async def _read_optional_codex_image(image: UploadFile | None) -> tuple[bytes | None, str | None]:
+    if image is None:
+        return None, None
+    return await _read_codex_image(image)
+
+
+def _resolve_codex_prompt(prompt: str | None, *, has_image: bool, default_prompt: str) -> str:
+    text = (prompt or "").strip()
+    if text:
+        return text
+    if has_image:
+        return default_prompt
+    raise HTTPException(status_code=400, detail="prompt or image required")
+
+
+def _resolve_codex_timeout(timeout_seconds: float | None) -> float:
+    timeout = timeout_seconds if timeout_seconds is not None else _CODEX_TIMEOUT_SECONDS
+    return max(1.0, min(float(timeout), _CODEX_TIMEOUT_SECONDS))
+
+
+def _sse(event: str, data: str) -> str:
+    return f"event: {event}\ndata: {data}\n\n"
+
+
 # ── App ────────────────────────────────────────────────────────────────────
 app = FastAPI(title="spark-gateway")
 
@@ -215,6 +401,115 @@ async def completions(request: Request) -> StreamingResponse:
 @app.post("/v1/embeddings", dependencies=[Depends(require_bearer)])
 async def embeddings(request: Request) -> StreamingResponse:
     return await _proxy_inference_by_model_field(request, "embeddings")
+
+
+# ── /v1/codex Codex-backed image/prompt worker ────────────────────────────
+@app.post("/v1/codex", dependencies=[Depends(require_bearer)])
+async def codex_run(
+    image: UploadFile | None = File(default=None),
+    prompt: str | None = Form(default=None),
+    timeout_seconds: float | None = Form(default=None),
+) -> dict[str, str]:
+    if not _CODEX_ENABLED:
+        raise HTTPException(status_code=404, detail="codex endpoint is disabled")
+
+    image_body, suffix = await _read_optional_codex_image(image)
+    codex_prompt = _resolve_codex_prompt(
+        prompt,
+        has_image=image_body is not None,
+        default_prompt=_CODEX_DEFAULT_PROMPT,
+    )
+    timeout = _resolve_codex_timeout(timeout_seconds)
+
+    with tempfile.TemporaryDirectory(prefix="spark-codex-") as tmpdir:
+        image_path: Path | None = None
+        if image_body is not None and suffix is not None:
+            image_path = Path(tmpdir) / f"input{suffix}"
+            image_path.write_bytes(image_body)
+        try:
+            raw = await _run_codex_once(image_path, codex_prompt, timeout)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "text": raw,
+        "raw": raw,
+        "engine": "codex-cli",
+    }
+
+
+@app.post("/v1/codex/stream", dependencies=[Depends(require_bearer)])
+async def codex_stream(
+    image: UploadFile | None = File(default=None),
+    prompt: str | None = Form(default=None),
+    timeout_seconds: float | None = Form(default=None),
+) -> StreamingResponse:
+    if not _CODEX_ENABLED:
+        raise HTTPException(status_code=404, detail="codex endpoint is disabled")
+
+    image_body, suffix = await _read_optional_codex_image(image)
+    codex_prompt = _resolve_codex_prompt(
+        prompt,
+        has_image=image_body is not None,
+        default_prompt=_CODEX_DEFAULT_PROMPT,
+    )
+    timeout = _resolve_codex_timeout(timeout_seconds)
+
+    async def events() -> AsyncIterator[str]:
+        with tempfile.TemporaryDirectory(prefix="spark-codex-") as tmpdir:
+            image_path: Path | None = None
+            if image_body is not None and suffix is not None:
+                image_path = Path(tmpdir) / f"input{suffix}"
+                image_path.write_bytes(image_body)
+            try:
+                async for line in _stream_codex_jsonl(image_path, codex_prompt, timeout):
+                    yield _sse("codex", line)
+            except TimeoutError as exc:
+                yield _sse("error", json.dumps({"detail": str(exc)}))
+                return
+            except RuntimeError as exc:
+                yield _sse("error", json.dumps({"detail": str(exc)}))
+                return
+            yield _sse("done", "{}")
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+# ── /v1/ocr compatibility alias ───────────────────────────────────────────
+@app.post("/v1/ocr", dependencies=[Depends(require_bearer)])
+async def codex_ocr(
+    image: UploadFile = File(...),
+    prompt: str | None = Form(default=None),
+    timeout_seconds: float | None = Form(default=None),
+) -> dict[str, str]:
+    if not _CODEX_OCR_ENABLED:
+        raise HTTPException(status_code=404, detail="codex OCR endpoint is disabled")
+
+    image_body, suffix = await _read_codex_image(image)
+    ocr_prompt = prompt or _CODEX_OCR_DEFAULT_PROMPT
+    timeout = _resolve_codex_timeout(timeout_seconds)
+
+    with tempfile.TemporaryDirectory(prefix="spark-codex-ocr-") as tmpdir:
+        image_path = Path(tmpdir) / f"input{suffix}"
+        image_path.write_bytes(image_body)
+        try:
+            raw = await _run_codex_ocr(image_path, ocr_prompt, timeout)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "text": raw,
+        "raw": raw,
+        "engine": "codex-cli",
+    }
 
 
 # ── /v1/audio/* path-keyed proxy (multipart/binary OK) ────────────────────

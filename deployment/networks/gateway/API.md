@@ -24,6 +24,7 @@ Auth:      Authorization: Bearer <GATEWAY_MASTER_KEY>
 | chord recognition | `/v1/audio/chords` | Madmom CNN+CRF (CPU) |
 | note transcription | `/v1/audio/notes` | Spotify BasicPitch (CPU TF) |
 | source separation | `/v1/audio/stems` | Meta htdemucs 4-stem (GPU CUDA) |
+| Codex fallback | `/v1/codex`, `/v1/codex/stream` | Codex CLI prompt/image worker (optional, disabled by default) |
 
 **gateway 의 책임 범위** = dedicated 모델 호스팅 + OpenAI-compat 라우팅. 음악 도메인 로직 (chord 표기 매핑, key detection, MIDI 분석, chord 진행 추천 등) 은 클라이언트 책임 — §10 참조.
 
@@ -153,7 +154,62 @@ unzip stems.zip
 - 각 stem 의 samplerate / 길이 = 원본과 동일
 - 입력 mono → 내부적으로 stereo upsample 처리됨
 
-### 3-7. `GET /health`, `GET /metrics`
+### 3-7. `POST /v1/codex` — Codex 기반 prompt/image fallback
+
+multipart form, JSON 응답. 기본 off (`GATEWAY_CODEX_ENABLED=false`).
+OpenAI Platform vision API 가 아니라 gateway 컨테이너 안의 `codex exec` 를
+호출하므로 Codex 로그인/cache 와 Codex 사용량을 사용한다.
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" \
+  -F "image=@screenshot.png" \
+  -F "prompt=이 이미지를 분석해서 JSON으로 요약해." \
+  http://127.0.0.1:10080/v1/codex
+```
+
+```json
+{
+  "text": "analysis result...",
+  "raw": "analysis result...",
+  "engine": "codex-cli"
+}
+```
+
+- `prompt` 만 보내는 text-only 호출도 가능.
+- `image` 첨부 시 지원 `Content-Type`: `image/png`, `image/jpeg`, `image/webp`
+- 기본 image size limit: `GATEWAY_CODEX_MAX_IMAGE_BYTES=10485760`
+- 기본 timeout: `GATEWAY_CODEX_TIMEOUT_SECONDS=120`
+- disabled 상태에서 호출 시 `404 {"detail":"codex endpoint is disabled"}`
+- gateway compose 에서 `GATEWAY_CODEX_ENABLED=true` 설정 후, Codex auth cache 를 `/codex-home` 에 secret mount 해야 한다.
+- 저용량 fallback 용도. latency/format 안정성은 OpenAI vision API 나 dedicated OCR engine 처럼 보장하지 않는다.
+
+OCR만 필요하면 호환 alias `POST /v1/ocr` 도 유지된다. 이 alias는 image 필수이며
+기본 prompt가 “보이는 텍스트만 추출”로 고정되어 있다.
+
+#### `POST /v1/codex/stream`
+
+`codex exec --json` 출력(JSONL)을 SSE로 전달한다. 이벤트 이름은 `codex`,
+완료 이벤트는 `done` 이다.
+
+```bash
+curl -N -X POST -H "Authorization: Bearer $KEY" \
+  -F "image=@screenshot.png" \
+  -F "prompt=화면에서 보이는 오류와 다음 조치를 설명해." \
+  http://127.0.0.1:10080/v1/codex/stream
+```
+
+```text
+event: codex
+data: {"type":"thread.started", ...}
+
+event: codex
+data: {"type":"turn.completed", ...}
+
+event: done
+data: {}
+```
+
+### 3-8. `GET /health`, `GET /metrics`
 
 auth 면제. 운영용.
 
@@ -183,7 +239,9 @@ curl http://127.0.0.1:10080/metrics
 | 400 | request 파싱 실패 (multipart `audio` 누락 등) | `{"detail": "..."}` |
 | 401 | Authorization 누락 / 키 불일치 | `{"detail": "missing or malformed Authorization header"}` 또는 `"invalid master key"` |
 | 404 | 모델/라우트 미등록 | `{"detail": "model 'foo' not registered (have: ['qwen3-8b','bge-m3'])"}` 등 |
+| 413 | OCR 이미지 size limit 초과 | `{"detail": "image exceeds max size of ... bytes"}` |
 | 502 | 백엔드 컨테이너 down / unreachable | `{"detail": "backend unreachable: ..."}` |
+| 504 | Codex timeout | `{"detail": "codex OCR timed out"}` 또는 stream `error` 이벤트 |
 | 5xx | 모델 추론 실패 | 백엔드별 detail message |
 
 5xx / 502 는 retry-with-backoff 권장 (모델 재기동 / 일시 OOM 등 transient 케이스 흡수).
@@ -233,6 +291,10 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/aud
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/audio/notes" | jq
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" --output /tmp/stems.zip "$GW/v1/audio/stems" \
   && unzip -l /tmp/stems.zip
+
+# Codex fallback (enable GATEWAY_CODEX_ENABLED first)
+curl -s -X POST -H "Authorization: Bearer $KEY" \
+  -F "image=@screenshot.png" -F "prompt=Extract visible text only." "$GW/v1/codex" | jq -r '.text'
 ```
 
 ## 9. 보장하지 않는 것

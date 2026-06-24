@@ -403,6 +403,11 @@ async def embeddings(request: Request) -> StreamingResponse:
     return await _proxy_inference_by_model_field(request, "embeddings")
 
 
+@app.post("/v1/rerank", dependencies=[Depends(require_bearer)])
+async def rerank(request: Request) -> StreamingResponse:
+    return await _proxy_inference_by_model_field(request, "rerank")
+
+
 # ── /v1/codex Codex-backed image/prompt worker ────────────────────────────
 @app.post("/v1/codex", dependencies=[Depends(require_bearer)])
 async def codex_run(

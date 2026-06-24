@@ -1,0 +1,48 @@
+# Qwen3-Reranker-0.6B (Qwen, cross-encoder reranker, 0.6B params).
+# Model card: https://huggingface.co/Qwen/Qwen3-Reranker-0.6B
+#
+# Qwen3-Reranker 는 causal LM 아키텍처를 reranker 로 재활용 — yes/no 토큰
+# 로짓을 점수로 사용. vLLM v0.9+ 는 `--task score` 와 `--hf-overrides`
+# 조합으로 모델을 `Qwen3ForSequenceClassification` 으로 변환해 효율적인
+# /v1/rerank (Jina-compat) 엔드포인트 노출.
+#
+# Why not TEI: TEI 는 BGE/Jina 류 sequence-classification 리랭커만 native
+# 지원. Qwen3-Reranker 는 causal LM 베이스라 vLLM 경로가 정석.
+services:
+  qwen3-reranker-0.6b:
+    image: ${QWEN3_RERANKER_0_6B_IMAGE}
+    container_name: spark-inference-qwen3-reranker-0-6b
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${QWEN3_RERANKER_0_6B_MODEL_SUBDIR}:/model:ro
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${QWEN3_RERANKER_0_6B_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+
+    # `--task score` + Qwen3-Reranker 전용 hf-overrides 가 핵심.
+    # `classifier_from_token: ["no", "yes"]` 는 모델 카드 권장값 그대로.
+    # `is_original_qwen3_reranker: true` 는 HF 원본 가중치임을 명시.
+    command: >
+      --model /model
+      --served-model-name qwen3-reranker-0.6b
+      --task score
+      --hf-overrides '{"architectures":["Qwen3ForSequenceClassification"],"classifier_from_token":["no","yes"],"is_original_qwen3_reranker":true}'
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${QWEN3_RERANKER_0_6B_TP_SIZE:-1}
+      --gpu-memory-utilization ${QWEN3_RERANKER_0_6B_GPU_UTIL:-0.05}
+      --max-model-len ${QWEN3_RERANKER_0_6B_MAX_LEN:-8192}
+      ${QWEN3_RERANKER_0_6B_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

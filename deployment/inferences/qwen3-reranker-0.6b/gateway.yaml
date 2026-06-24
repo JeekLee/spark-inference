@@ -1,0 +1,7 @@
+# Gateway 라우팅 fragment — qwen3-reranker-0.6b (vLLM score task).
+#
+# /v1/rerank (Jina-compat) 엔드포인트 노출. 게이트웨이 main.py 의
+# /v1/rerank 핸들러가 `model` 필드로 라우팅.
+- kind: inference
+  model: qwen3-reranker-0.6b
+  url: http://qwen3-reranker-0.6b:8000

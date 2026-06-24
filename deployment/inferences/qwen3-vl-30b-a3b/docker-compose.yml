@@ -1,0 +1,42 @@
+# Qwen3-VL-30B-A3B-Instruct (Qwen, MoE 30B total / ~3B active per token,
+# multimodal: text + image). BF16 가중치 ~62GB (텍스트 베이스 60GB + vision tower).
+# Model card: https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Instruct
+#
+# 베이스 MoE 백본은 Qwen3-30B-A3B-Instruct-2507 와 동일 → chat / tool-calling 유지.
+# FP8 변형은 GB10(sm_121) 미지원으로 보류 (text 변형과 동일 이슈).
+services:
+  qwen3-vl-30b-a3b:
+    image: ${QWEN3_VL_30B_A3B_IMAGE}
+    container_name: spark-inference-qwen3-vl-30b-a3b
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${QWEN3_VL_30B_A3B_MODEL_SUBDIR}:/model:ro
+
+    # NVIDIA_VISIBLE_DEVICES is the only way to express a variable-length
+    # GPU list via env interpolation (compose's `device_ids` is a fixed
+    # YAML list and cannot be expanded by env vars).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${QWEN3_VL_30B_A3B_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+
+    command: >
+      --model /model
+      --served-model-name qwen3-vl-30b-a3b
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${QWEN3_VL_30B_A3B_TP_SIZE:-1}
+      --gpu-memory-utilization ${QWEN3_VL_30B_A3B_GPU_UTIL:-0.6}
+      --max-model-len ${QWEN3_VL_30B_A3B_MAX_LEN:-32768}
+      ${QWEN3_VL_30B_A3B_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

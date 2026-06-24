@@ -21,6 +21,7 @@ Auth:      Authorization: Bearer <GATEWAY_MASTER_KEY>
 |---|---|---|
 | chat / instruct | `qwen3-8b` | Qwen3-8B BF16 (vLLM, GPU) |
 | embedding | `bge-m3` | BAAI/bge-m3, 1024-d L2-normalized, multilingual (vLLM `--runner pooling`, GPU) |
+| reranking | `qwen3-reranker-0.6b` | Qwen3-Reranker-0.6B (vLLM `--task score`, Jina-compatible `/v1/rerank`) |
 | chord recognition | `/v1/audio/chords` | Madmom CNN+CRF (CPU) |
 | note transcription | `/v1/audio/notes` | Spotify BasicPitch (CPU TF) |
 | source separation | `/v1/audio/stems` | Meta htdemucs 4-stem (GPU CUDA) |
@@ -87,7 +88,27 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
 
 multilingual — 한↔영 cross-lingual semantic 동일 의미 ≈ 0.85+, paraphrase ≈ 0.6+.
 
-### 3-4. `POST /v1/audio/chords` — 코드 인식
+### 3-4. `POST /v1/rerank`
+
+Jina-compatible rerank 요청을 `model` 필드 기준으로 vLLM score backend에 라우팅.
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3-reranker-0.6b",
+    "query": "fast local OCR alternatives",
+    "documents": [
+      "Qwen3-VL can process screenshots locally.",
+      "BGE-M3 returns dense embeddings.",
+      "BasicPitch transcribes notes from audio."
+    ],
+    "top_n": 2
+  }' http://127.0.0.1:10080/v1/rerank
+```
+
+응답은 backend vLLM `/v1/rerank` 응답을 그대로 전달한다.
+
+### 3-5. `POST /v1/audio/chords` — 코드 인식
 
 multipart upload, JSON 응답.
 
@@ -112,7 +133,7 @@ curl -X POST -H "Authorization: Bearer $KEY" \
 - `start`, `end`: 초 단위 float
 - 합성 sine 같은 입력은 `N` 만 나올 수 있음 (실제 timbre 분포 기준 학습)
 
-### 3-5. `POST /v1/audio/notes` — 노트 전사
+### 3-6. `POST /v1/audio/notes` — 노트 전사
 
 multipart upload, JSON 응답. polyphonic OK.
 
@@ -136,7 +157,7 @@ curl -X POST -H "Authorization: Bearer $KEY" \
 - `amplitude`: 0–1 float
 - 동일 시점 다중 노트 가능 — 코드 분석 시 동시 시각의 노트들을 묶어서 활용
 
-### 3-6. `POST /v1/audio/stems` — 소스 분리
+### 3-7. `POST /v1/audio/stems` — 소스 분리
 
 multipart upload, **`application/zip` 응답** (binary).
 
@@ -154,7 +175,7 @@ unzip stems.zip
 - 각 stem 의 samplerate / 길이 = 원본과 동일
 - 입력 mono → 내부적으로 stereo upsample 처리됨
 
-### 3-7. `POST /v1/codex` — Codex 기반 prompt/image fallback
+### 3-8. `POST /v1/codex` — Codex 기반 prompt/image fallback
 
 multipart form, JSON 응답. 기본 off (`GATEWAY_CODEX_ENABLED=false`).
 OpenAI Platform vision API 가 아니라 gateway 컨테이너 안의 `codex exec` 를
@@ -209,7 +230,7 @@ event: done
 data: {}
 ```
 
-### 3-8. `GET /health`, `GET /metrics`
+### 3-9. `GET /health`, `GET /metrics`
 
 auth 면제. 운영용.
 
@@ -285,6 +306,11 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/js
 curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"model":"bge-m3","input":["test"]}' "$GW/v1/embeddings" | jq '.data[0].embedding | length'
 # → 1024
+
+# rerank
+curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"model":"qwen3-reranker-0.6b","query":"test","documents":["test document","unrelated"],"top_n":1}' \
+  "$GW/v1/rerank" | jq
 
 # audio (test wav 준비 후)
 curl -s -X POST -H "Authorization: Bearer $KEY" -F "audio=@test.wav" "$GW/v1/audio/chords" | jq

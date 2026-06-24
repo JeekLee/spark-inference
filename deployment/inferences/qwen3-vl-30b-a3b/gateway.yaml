@@ -1,0 +1,5 @@
+# Gateway 라우팅 fragment — Qwen3-VL-30B-A3B (multimodal chat).
+# OpenAI Chat Completions API 호환 — `image_url` content type 지원.
+- kind: inference
+  model: qwen3-vl-30b-a3b
+  url: http://qwen3-vl-30b-a3b:8000

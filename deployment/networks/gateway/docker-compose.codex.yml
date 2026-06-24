@@ -1,0 +1,9 @@
+# Optional Codex auth-cache mount for /v1/codex.
+#
+# run.sh includes this override only when GATEWAY_CODEX_ENABLED=true in the
+# selected env file. The mounted directory contains Codex access tokens and
+# app-server state, so use a dedicated Codex home and treat it as a secret.
+services:
+  gateway:
+    volumes:
+      - ${GATEWAY_CODEX_AUTH_DIR:?GATEWAY_CODEX_AUTH_DIR required when GATEWAY_CODEX_ENABLED=true}:/codex-home

@@ -5,7 +5,15 @@
 # 엔드포인트를 한 포트(default 10080) 뒤에 통합.
 FROM python:3.12-slim
 
+ARG CODEX_CLI_VERSION=0.142.0
+
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && npm install -g "@openai/codex@${CODEX_CLI_VERSION}" \
+    && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt

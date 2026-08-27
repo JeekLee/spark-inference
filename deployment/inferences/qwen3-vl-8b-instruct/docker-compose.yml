@@ -1,0 +1,35 @@
+# Qwen3-VL-8B-Instruct (제품명 8B, 모델 카드 표기 9B, multimodal text + image).
+# Model card: https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct
+services:
+  qwen3-vl-8b-instruct:
+    image: ${QWEN3_VL_8B_INSTRUCT_IMAGE}
+    container_name: spark-inference-qwen3-vl-8b-instruct
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${QWEN3_VL_8B_INSTRUCT_MODEL_SUBDIR}:/model:ro
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${QWEN3_VL_8B_INSTRUCT_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+
+    command: >
+      --model /model
+      --served-model-name qwen3-vl-8b-instruct
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${QWEN3_VL_8B_INSTRUCT_TP_SIZE:-1}
+      --gpu-memory-utilization ${QWEN3_VL_8B_INSTRUCT_GPU_UTIL:-0.25}
+      --max-model-len ${QWEN3_VL_8B_INSTRUCT_MAX_LEN:-32768}
+      ${QWEN3_VL_8B_INSTRUCT_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

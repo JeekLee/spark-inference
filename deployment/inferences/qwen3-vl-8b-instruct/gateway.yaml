@@ -1,0 +1,5 @@
+# Gateway 라우팅 fragment — Qwen3-VL-8B-Instruct (multimodal chat).
+# OpenAI Chat Completions API 호환 — `image_url` content type 지원.
+- kind: inference
+  model: qwen3-vl-8b-instruct
+  url: http://qwen3-vl-8b-instruct:8000

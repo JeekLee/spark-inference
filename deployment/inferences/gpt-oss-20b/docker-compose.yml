@@ -1,0 +1,45 @@
+# openai/gpt-oss-20b (MXFP4 MoE, harmony chat format) — vLLM OpenAI-compat.
+#
+# Conventions (see CLAUDE.md):
+#   - service name == directory name == gateway model name (1:1:1).
+#   - GPU allocation via NVIDIA_VISIBLE_DEVICES env (variable length).
+#     count(GPT_OSS_20B_GPU_IDS) MUST equal GPT_OSS_20B_TP_SIZE.
+services:
+  gpt-oss-20b:
+    image: ${GPT_OSS_20B_IMAGE}
+    container_name: spark-inference-gpt-oss-20b
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${GPT_OSS_20B_MODEL_SUBDIR}:/model:ro
+
+    # NVIDIA_VISIBLE_DEVICES is the only way to express a variable-length
+    # GPU list via env interpolation (compose's `device_ids` is a fixed
+    # YAML list and cannot be expanded by env vars).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GPT_OSS_20B_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+      # openai_harmony 가 boot 시 tiktoken vocab 을 원격 fetch 하다 실패함 →
+      # 모델 디렉토리 하위 tiktoken/ 에 미리 받아둔 파일을 사용 (.env.example 참조).
+      TIKTOKEN_ENCODINGS_BASE: /model/tiktoken
+
+    command: >
+      --model /model
+      --served-model-name gpt-oss-20b
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${GPT_OSS_20B_TP_SIZE:-1}
+      --gpu-memory-utilization ${GPT_OSS_20B_GPU_UTIL:-0.9}
+      --max-model-len ${GPT_OSS_20B_MAX_LEN:-32768}
+      ${GPT_OSS_20B_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

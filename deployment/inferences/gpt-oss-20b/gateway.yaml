@@ -1,0 +1,4 @@
+# Gateway 라우팅 fragment — gpt-oss-20b (vLLM chat, OpenAI-compat).
+- kind: inference
+  model: gpt-oss-20b
+  url: http://gpt-oss-20b:8000

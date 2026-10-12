@@ -20,6 +20,7 @@ Auth:      Authorization: Bearer <GATEWAY_MASTER_KEY>
 | 종류 | 이름 / path | 백엔드 |
 |---|---|---|
 | chat / instruct | `qwen3-8b` | Qwen3-8B BF16 (vLLM, GPU) |
+| chat / multimodal | `qwen3.8-27b` | Qwen3.8-27B FP8, image 입력 + thinking + tool calling, 128K ctx (vLLM, GPU) |
 | embedding | `bge-m3` | BAAI/bge-m3, 1024-d L2-normalized, multilingual (vLLM `--runner pooling`, GPU) |
 | reranking | `qwen3-reranker-0.6b` | Qwen3-Reranker-0.6B (vLLM `--task score`, Jina-compatible `/v1/rerank`) |
 | chord recognition | `/v1/audio/chords` | Madmom CNN+CRF (CPU) |
@@ -71,6 +72,8 @@ curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json"
 응답: 표준 OpenAI 포맷 (`choices[0].message.content`, `usage` 등).
 
 > `qwen3-8b` 는 reasoning 모델 — prompt 끝에 `/no_think` 를 붙이면 reasoning 단계 생략하고 바로 답변 (latency 단축). reasoning 단계 응답이 필요하면 `choices[0].message.reasoning` 필드 활용.
+
+> `qwen3.8-27b` 는 thinking 이 기본 on — reasoning 은 `choices[0].message.reasoning` 로 분리. 빠른 응답이 필요하면 body 에 `"chat_template_kwargs": {"enable_thinking": false}`, 깊이 조절은 `"chat_template_kwargs": {"reasoning_effort": "low" | "medium" | "xhigh"}` (top-level `reasoning_effort` 아님). 이미지는 `image_url` (data URL 가능), 요청당 최대 10장. dense 27B 라 decode ~12 tok/s 수준 (MTP 적용) — thinking on 이면 짧은 질문도 수십 초 걸릴 수 있음. speculative decoding 때문에 `min_p` / `logit_bias` 는 무시됨.
 
 ### 3-3. `POST /v1/embeddings`
 

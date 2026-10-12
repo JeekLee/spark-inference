@@ -1,0 +1,45 @@
+# Qwen/Qwen3.8-27B-FP8 (dense 27B + vision encoder, hybrid linear attention,
+# thinking on by default) — vLLM OpenAI-compat.
+#
+# Conventions (see CLAUDE.md):
+#   - service name == directory name == gateway model name (1:1:1).
+#   - GPU allocation via NVIDIA_VISIBLE_DEVICES env (variable length).
+#     count(QWEN3_8_27B_GPU_IDS) MUST equal QWEN3_8_27B_TP_SIZE.
+services:
+  qwen3.8-27b:
+    image: ${QWEN3_8_27B_IMAGE}
+    container_name: spark-inference-qwen3.8-27b
+    restart: unless-stopped
+    runtime: nvidia
+    ipc: host
+
+    volumes:
+      - ${SPARK_MODELS_DIR}/${QWEN3_8_27B_MODEL_SUBDIR}:/model:ro
+
+    # NVIDIA_VISIBLE_DEVICES is the only way to express a variable-length
+    # GPU list via env interpolation (compose's `device_ids` is a fixed
+    # YAML list and cannot be expanded by env vars).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${QWEN3_8_27B_GPU_IDS:-0}
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      VLLM_LOGGING_LEVEL: ${VLLM_LOG_LEVEL:-INFO}
+      # 콤마 구분 kernel class 이름. GB10 workaround 용 (.env.example 참조).
+      VLLM_DISABLED_KERNELS: ${QWEN3_8_27B_DISABLED_KERNELS:-}
+
+    command: >
+      --model /model
+      --served-model-name qwen3.8-27b
+      --port 8000
+      --host 0.0.0.0
+      --tensor-parallel-size ${QWEN3_8_27B_TP_SIZE:-1}
+      --gpu-memory-utilization ${QWEN3_8_27B_GPU_UTIL:-0.9}
+      --max-model-len ${QWEN3_8_27B_MAX_LEN:-32768}
+      ${QWEN3_8_27B_EXTRA_ARGS:-}
+
+    networks:
+      - spark-inference-net
+
+networks:
+  spark-inference-net:
+    external: true
+    name: spark-inference-net

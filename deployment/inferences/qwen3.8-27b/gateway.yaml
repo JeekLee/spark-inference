@@ -1,0 +1,5 @@
+# Gateway 라우팅 fragment — qwen3.8-27b (multimodal chat, thinking 모델).
+# OpenAI Chat Completions API 호환 — `image_url` content type 지원.
+- kind: inference
+  model: qwen3.8-27b
+  url: http://qwen3.8-27b:8000
